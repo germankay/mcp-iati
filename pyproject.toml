@@ -34,7 +34,6 @@ build-backend = "uv_build"
 # Local-only setup: this plugin is not published yet, point straight at the
 # sibling checkouts instead of git URLs.
 mcp-server = { path = "../mcp-server", editable = true }
-okfn-iati = { path = "../okfn_iati", editable = true }
 
 [tool.ruff]
 line-length = 130
