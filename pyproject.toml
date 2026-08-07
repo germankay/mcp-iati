@@ -1,0 +1,56 @@
+[project]
+name = "mcp-iati"
+version = "0.1.0"
+description = "Herramientas MCP para procesar archivos del estandar IATI (prueba local, work in progress)"
+readme = "README.md"
+authors = [
+    { name = "OKFN", email = "info@okfn.org" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "mcp-server",
+    "pandas>=2.0.0",
+    "okfn-iati",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.15.0",
+    "pydantic>=2.13,<3.0",
+    "pytest>=8.0",
+]
+
+[project.scripts]
+mcp-iati = "mcp_iati:main"
+
+[project.entry-points."mcp_server"]
+mcp-iati = "mcp_iati:register_tools"
+
+[build-system]
+requires = ["uv_build>=0.9.10,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+# Local-only setup: this plugin is not published yet, point straight at the
+# sibling checkouts instead of git URLs.
+mcp-server = { path = "../mcp-server", editable = true }
+okfn-iati = { path = "../okfn_iati", editable = true }
+
+[tool.ruff]
+line-length = 130
+target-version = "py313"
+extend-exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C90", "RUF013"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 17
