@@ -1,7 +1,6 @@
 # MCP IATI
 
-**Nota:** Carpeta de prueba local. Todavía no está pensada para commitear a
-GitHub — es un punto de partida para un futuro plugin `mcp-server` que
+**Nota:** Carpeta de prueba local. Es un punto de partida para un futuro plugin `mcp-server` que
 procese archivos del estándar [IATI](https://iatistandard.org/) (actividades
 y organizaciones), inspirado en los plugins existentes
 [`mcp-datos-uruguay-ben`](../mcp-datos-uruguay-ben/README.md) (tools en
