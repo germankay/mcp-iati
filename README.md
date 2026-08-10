@@ -58,3 +58,37 @@ uv run mcp-server
 
 Las tools quedarán disponibles con el prefijo `mcp_iati_`.
 
+## Glosario IATI
+
+Las descripciones de las tools y las instrucciones del plugin comparten un
+glosario central definido en `src/mcp_iati/glossary.py`. Su objetivo es que el
+modelo interprete de forma consistente los términos del estándar y explique
+las diferencias que suelen ser ambiguas, especialmente entre organización
+reportante, financiadora y ejecutora, y entre compromiso, desembolso y gasto.
+
+| Término | Definición |
+| --- | --- |
+| Actividad IATI | Intervención de cooperación o desarrollo; puede ser un proyecto, programa u otra unidad de trabajo. |
+| Identificador IATI | Código global y único de una actividad, usado también para vincular sus transacciones. |
+| Organización reportante | Organización responsable de publicar y mantener los datos; no necesariamente financia o ejecuta. |
+| Estado de actividad | Etapa del ciclo de vida, como planificación, ejecución o cierre. |
+| Transacción | Movimiento financiero asociado a una actividad, con tipo, fecha, valor y moneda. |
+| Compromiso | Obligación financiera asumida para aportar fondos. |
+| Desembolso | Fondos puestos a disposición o transferidos para una actividad. |
+| Gasto | Fondos utilizados en la actividad por la organización reportante u otra organización. |
+| Moneda predeterminada | Moneda usada cuando un valor no especifica otra. |
+| Organización participante | Organización vinculada con un rol, como financiación, implementación o rendición. |
+| Sector | Área temática o económica clasificada mediante un código. |
+| País o región receptora | Ubicación que recibe los beneficios previstos de la actividad. |
+
+Cuando se agregue una nueva tool, se deben reutilizar las definiciones del
+módulo central en lugar de duplicarlas en su docstring.
+
+## Pruebas
+
+```bash
+uv run pytest
+```
+
+Las pruebas verifican que el glosario incluya los conceptos mínimos y que las
+descripciones de las tools expongan los términos pertinentes al modelo.

@@ -356,7 +356,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "mcp-server", editable = "../mcp-server" },
-    { name = "okfn-iati", editable = "../okfn_iati" },
+    { name = "okfn-iati" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "pydantic", marker = "extra == 'dev'", specifier = ">=2.13,<3.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
@@ -419,22 +419,15 @@ wheels = [
 
 [[package]]
 name = "okfn-iati"
-version = "0.5.0"
-source = { editable = "../okfn_iati" }
+version = "0.4.3"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "lxml" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "build", marker = "extra == 'dev'", specifier = ">=0.8.0" },
-    { name = "flake8", marker = "extra == 'dev'", specifier = ">=6.0.0" },
-    { name = "lxml", specifier = ">=4.9.0" },
-    { name = "lxml", marker = "extra == 'dev'", specifier = ">=4.9.0" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.5.0" },
-    { name = "twine", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/c2/39/65a52347c42aed5074887c079505fd4f18af8a4a190c1a3632cc7d1609f2/okfn_iati-0.4.3.tar.gz", hash = "sha256:5975577ac025b3a10cc9e576bc4a4eb1361de498414daeaef1248367a9990db0", size = 172780, upload-time = "2026-01-27T19:32:03.743Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/77/d0/941ffe061cb18e3570bae0325547a7f3ba664c6be9238c0f8aa9dd60d7ba/okfn_iati-0.4.3-py3-none-any.whl", hash = "sha256:5dbc5b0ada6804c640e4e5aeca8290ab5140cabdd3695898fa0f4f7d11cc5112", size = 160968, upload-time = "2026-01-27T19:32:01.714Z" },
 ]
-provides-extras = ["dev"]
 
 [[package]]
 name = "packaging"
