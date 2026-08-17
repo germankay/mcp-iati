@@ -3,6 +3,7 @@ from mcp.types import CallToolResult, TextContent
 from mcp_server import DataToolOutput
 
 from mcp_iati.activities import queries as activities
+from mcp_iati.glossary import full_glossary_text, glossary_text
 
 
 def register_tools(mcp):
@@ -22,21 +23,24 @@ def _register_iati_tools(mcp):  # noqa: C901
     """
     mcp.set_plugin_info(
         description=(
-            "Herramientas de prueba sobre datos abiertos del estandar IATI "
-            "de cooperacion internacional (por defecto, actividades del BID "
-            "en Brasil)."
+            "Herramientas para consultar actividades y transacciones publicadas "
+            "según el estándar IATI de datos abiertos sobre cooperación y desarrollo."
         ),
         instructions=(
-            "Sos un asistente de prueba para el plugin IATI. Los datos "
-            "cargados son actividades de cooperacion internacional segun el "
-            "estandar IATI (identificador, titulo, estado, transacciones de "
-            "compromiso/desembolso). Si te preguntan algo que no se pueda "
-            "responder con estas tools, llama a no_tool_disponible "
-            "explicando el motivo."
+            "Sos un asistente para consultar datos IATI. Interpretá las preguntas "
+            "usando el siguiente glosario y explicá los términos cuando pueda haber "
+            "ambigüedad. No confundas a la organización reportante con quien financia "
+            "o ejecuta una actividad, ni un compromiso con un desembolso o gasto. "
+            "Usá únicamente los datos devueltos por las tools; si la consulta queda "
+            "fuera de su alcance, llamá a no_tool_disponible explicando el motivo.\n\n"
+            "Glosario IATI:\n" + full_glossary_text()
         ),
         sample_questions=[
             "Buscá actividades IATI sobre transporte",
             "Dame el resumen de la actividad XI-IATI-IADB-BR-L1231",
+            "¿Qué significa que una actividad esté en ejecución?",
+            "¿Cuánto se comprometió y cuánto se desembolsó en esta actividad?",
+            "¿La organización reportante es también quien financia el proyecto?",
         ],
     )
 
@@ -60,42 +64,53 @@ def _register_iati_tools(mcp):  # noqa: C901
             structuredContent={"sources": []},
         )
 
-    @mcp.tool()
     def buscar_actividades(texto: str, limit: int = 10) -> DataToolOutput:
+        return activities.buscar_actividades(texto, limit=limit)
+
+    buscar_actividades.__doc__ = (
         """Busca actividades IATI cuyo título contenga el texto indicado.
 
-        Útil como primer paso para descubrir el identificador IATI de una
-        actividad, antes de pedir su resumen con resumen_actividad.
+        Útil como primer paso para descubrir el identificador IATI de una actividad,
+        antes de pedir su resumen con resumen_actividad.
 
         Args:
-            texto: Subcadena a buscar en el título de la actividad (sin
-                distinguir mayúsculas/minúsculas). Ej: "transporte", "road".
+            texto: Subcadena a buscar en el título (sin distinguir mayúsculas/minúsculas).
             limit: Cantidad máxima de resultados a devolver. Default: 10.
 
         Returns:
-            Una tabla con identificador IATI, título y estado de cada
-            actividad que coincide.
+            Una tabla con identificador IATI, título y estado de cada coincidencia.
 
-        Examples:
-            - buscar_actividades(texto="transporte")
-            - buscar_actividades(texto="road", limit=5)
+        Términos IATI relevantes:
         """
-        return activities.buscar_actividades(texto, limit=limit)
+        + glossary_text("actividad IATI", "identificador IATI", "estado de actividad")
+    )
+    mcp.tool()(buscar_actividades)
 
-    @mcp.tool()
     def resumen_actividad(iati_identifier: str) -> DataToolOutput:
-        """Devuelve el resumen de una actividad IATI: título, estado,
-            organización reportante y los totales comprometido/desembolsado
-            (y otros tipos de transacción presentes) según sus transacciones.
+        return activities.resumen_actividad(iati_identifier)
+
+    resumen_actividad.__doc__ = (
+        """Devuelve título, estado, organización reportante y totales por tipo
+        de transacción de una actividad IATI.
 
         Args:
-            iati_identifier: Identificador IATI de la actividad, ej.
-                "XI-IATI-IADB-BR-L1231". Se obtiene con buscar_actividades.
+            iati_identifier: Identificador IATI, por ejemplo "XI-IATI-IADB-BR-L1231".
+                Se obtiene con buscar_actividades.
 
-        Examples:
-            - resumen_actividad(iati_identifier="XI-IATI-IADB-BR-L1231")
+        Términos IATI relevantes:
         """
-        return activities.resumen_actividad(iati_identifier)
+        + glossary_text(
+            "identificador IATI",
+            "organización reportante",
+            "estado de actividad",
+            "transacción",
+            "compromiso",
+            "desembolso",
+            "gasto",
+            "moneda predeterminada",
+        )
+    )
+    mcp.tool()(resumen_actividad)
 
 
 def main() -> None:
