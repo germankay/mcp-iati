@@ -1,30 +1,66 @@
 """Loads a real IATI activities XML into flat pandas DataFrames.
 
 Genericity note: this module works with ANY IATI 2.x activities XML, not just
-the bundled Brazil sample - the columns it reads (activity_identifier,
+the default sample - the columns it reads (activity_identifier,
 transaction_type, value, ...) come straight from the IATI standard, produced
-by okfn_iati's `IatiMultiCsvConverter.xml_to_csv_folder()`. Point
-MCP_IATI_XML_PATH at a different file (e.g. iadb-Argentina.xml) to query it
-instead, with no code changes.
+by okfn_iati's `IatiMultiCsvConverter.xml_to_csv_folder()`.
+
+Real-life sample XMLs are NOT stored in this repo: on first use the configured
+sample is downloaded from the okfn_iati GitHub repo
+(https://github.com/okfn/okfn_iati, `data-samples/xml/`) into a per-user data
+directory. Pick a different sample with MCP_IATI_SAMPLE (e.g.
+`iadb-Argentina.xml`), or set MCP_IATI_XML_PATH to use a local file with no
+download at all.
 """
 import os
 import tempfile
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import pandas as pd
 from okfn_iati import IatiMultiCsvConverter
+from platformdirs import user_data_path
 
-# Default: the IADB Brazil sample bundled in this monorepo (see okfn_iati/data-samples).
-_DEFAULT_XML_PATH = (
-    Path(__file__).resolve().parents[4] / "okfn_iati" / "data-samples" / "xml" / "iadb-Brazil.xml"
-)
+APP_DIR = "mcp-iati"
+
+# Samples live in the okfn_iati repo (a few MB each), downloaded on demand.
+_SAMPLES_BASE_URL = "https://raw.githubusercontent.com/okfn/okfn_iati/main/data-samples/xml"
+_DEFAULT_SAMPLE = "iadb-Brazil.xml"
 
 _cache: dict = {}
 
 
+def _download_sample(name: str) -> Path:
+    """Download a sample XML from the okfn_iati repo unless already cached locally."""
+    target = user_data_path(APP_DIR) / "xml" / name
+    if target.exists():
+        return target
+    url = f"{_SAMPLES_BASE_URL}/{name}"
+    try:
+        with urllib.request.urlopen(url, timeout=60) as resp:
+            content = resp.read()
+    except (urllib.error.URLError, OSError) as exc:
+        raise FileNotFoundError(
+            f"Could not download IATI sample '{name}' from {url} ({exc}). "
+            "Check MCP_IATI_SAMPLE, or set MCP_IATI_XML_PATH to a local file."
+        ) from exc
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(content)
+    return target
+
+
 def xml_path() -> Path:
-    """Path to the IATI XML file to load, overridable via MCP_IATI_XML_PATH."""
-    return Path(os.environ.get("MCP_IATI_XML_PATH", _DEFAULT_XML_PATH))
+    """Path to the IATI XML file to load.
+
+    MCP_IATI_XML_PATH points at a local file (no download). Otherwise the
+    sample named by MCP_IATI_SAMPLE (default iadb-Brazil.xml) is fetched from
+    the okfn_iati repo on first use and cached in the per-user data dir.
+    """
+    local = os.environ.get("MCP_IATI_XML_PATH")
+    if local:
+        return Path(local)
+    return _download_sample(os.environ.get("MCP_IATI_SAMPLE", _DEFAULT_SAMPLE))
 
 
 def xml_source() -> str:

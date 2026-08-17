@@ -344,6 +344,7 @@ dependencies = [
     { name = "mcp-server" },
     { name = "okfn-iati" },
     { name = "pandas" },
+    { name = "platformdirs" },
 ]
 
 [package.optional-dependencies]
@@ -355,9 +356,10 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "mcp-server", editable = "../mcp-server" },
-    { name = "okfn-iati", editable = "../okfn_iati" },
+    { name = "mcp-server", git = "https://github.com/okfn/mcp-server" },
+    { name = "okfn-iati", specifier = ">=0.4.3" },
     { name = "pandas", specifier = ">=2.0.0" },
+    { name = "platformdirs", specifier = ">=4.9.6" },
     { name = "pydantic", marker = "extra == 'dev'", specifier = ">=2.13,<3.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.15.0" },
@@ -367,25 +369,11 @@ provides-extras = ["dev"]
 [[package]]
 name = "mcp-server"
 version = "0.0.1"
-source = { editable = "../mcp-server" }
+source = { git = "https://github.com/okfn/mcp-server#9ddcedff4414c659dca73eed0794008a1cd9a492" }
 dependencies = [
     { name = "mcp" },
     { name = "pandas" },
     { name = "pyyaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "mcp", specifier = "==1.26.0" },
-    { name = "pandas", specifier = "==3.0.1" },
-    { name = "pyyaml", specifier = "==6.0.3" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "inline-snapshot", specifier = ">=0.32.5" },
-    { name = "ipdb", specifier = ">=0.13.13" },
-    { name = "pytest" },
 ]
 
 [[package]]
@@ -419,22 +407,15 @@ wheels = [
 
 [[package]]
 name = "okfn-iati"
-version = "0.5.0"
-source = { editable = "../okfn_iati" }
+version = "0.4.3"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "lxml" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "build", marker = "extra == 'dev'", specifier = ">=0.8.0" },
-    { name = "flake8", marker = "extra == 'dev'", specifier = ">=6.0.0" },
-    { name = "lxml", specifier = ">=4.9.0" },
-    { name = "lxml", marker = "extra == 'dev'", specifier = ">=4.9.0" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.5.0" },
-    { name = "twine", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/c2/39/65a52347c42aed5074887c079505fd4f18af8a4a190c1a3632cc7d1609f2/okfn_iati-0.4.3.tar.gz", hash = "sha256:5975577ac025b3a10cc9e576bc4a4eb1361de498414daeaef1248367a9990db0", size = 172780, upload-time = "2026-01-27T19:32:03.743Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/77/d0/941ffe061cb18e3570bae0325547a7f3ba664c6be9238c0f8aa9dd60d7ba/okfn_iati-0.4.3-py3-none-any.whl", hash = "sha256:5dbc5b0ada6804c640e4e5aeca8290ab5140cabdd3695898fa0f4f7d11cc5112", size = 160968, upload-time = "2026-01-27T19:32:01.714Z" },
 ]
-provides-extras = ["dev"]
 
 [[package]]
 name = "packaging"
@@ -472,6 +453,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/6d/02/c6e04b694ffd68568297abd03588b6d30295265176a5c01b7459d3bc35a3/pandas-3.0.1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:15860b1fdb1973fffade772fdb931ccf9b2f400a3f5665aef94a00445d7d8dd5", size = 11810974, upload-time = "2026-02-17T22:20:08.946Z" },
     { url = "https://files.pythonhosted.org/packages/89/41/d7dfb63d2407f12055215070c42fc6ac41b66e90a2946cdc5e759058398b/pandas-3.0.1-cp314-cp314t-win_amd64.whl", hash = "sha256:44f1364411d5670efa692b146c748f4ed013df91ee91e9bec5677fb1fd58b937", size = 10884622, upload-time = "2026-02-17T22:20:11.711Z" },
     { url = "https://files.pythonhosted.org/packages/68/b0/34937815889fa982613775e4b97fddd13250f11012d769949c5465af2150/pandas-3.0.1-cp314-cp314t-win_arm64.whl", hash = "sha256:108dd1790337a494aa80e38def654ca3f0968cf4f362c85f44c15e471667102d", size = 9452085, upload-time = "2026-02-17T22:20:14.331Z" },
+]
+
+[[package]]
+name = "platformdirs"
+version = "4.11.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/d7/e7bfbc86e9f99ff7807e24de7703f032e9c9ba80bb355cf26e0e9bc5a75e/platformdirs-4.11.3.tar.gz", hash = "sha256:66a73d38a849810252df809a3d8bcbda8e26f6c189920e7535ad608a48dbb5ab", size = 33050, upload-time = "2026-08-13T22:43:27.52Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/19/a9/c34aebedd3a4c9afe5101b1b8713710b3fec18087c8a36c35d2f909861bd/platformdirs-4.11.3-py3-none-any.whl", hash = "sha256:5ed065d443751de711da036041a7a214122efc4a4de393b3f4137ba5576540e7", size = 23491, upload-time = "2026-08-13T22:43:26.121Z" },
 ]
 
 [[package]]

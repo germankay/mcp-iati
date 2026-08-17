@@ -8,9 +8,10 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "mcp-server",
+    "mcp-server @ git+https://github.com/okfn/mcp-server",
     "pandas>=2.0.0",
-    "okfn-iati",
+    "okfn-iati>=0.4.3",
+    "platformdirs>=4.9.6",
 ]
 
 [project.optional-dependencies]
@@ -29,11 +30,6 @@ mcp-iati = "mcp_iati:register_tools"
 [build-system]
 requires = ["uv_build>=0.9.10,<0.10.0"]
 build-backend = "uv_build"
-
-[tool.uv.sources]
-# Local-only setup: this plugin is not published yet, point straight at the
-# sibling checkouts instead of git URLs.
-mcp-server = { path = "../mcp-server", editable = true }
 
 [tool.ruff]
 line-length = 130
