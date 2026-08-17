@@ -4,14 +4,8 @@ Field names and codes (activity_status, transaction_type) come from the IATI
 standard codelists, so these queries work for any IATI activities XML, not
 just the bundled sample - see data.py.
 """
-from okfn_iati.enums import ActivityStatus, TransactionType
-
-from mcp_server.results import text_result
-
-from mcp_iati.activities.data import activities_df, transactions_df, xml_source
-
-_STATUS_LABELS = {str(s.value): s.name.replace("_", " ").title() for s in ActivityStatus}
-_TRANSACTION_TYPE_LABELS = {t.value: t.name.replace("_", " ").title() for t in TransactionType}
+from mcp_iati import helpers as h
+from mcp_iati.activities.data import activities_df, transactions_df
 
 
 def buscar_actividades(texto: str, limit: int = 10):
@@ -20,16 +14,22 @@ def buscar_actividades(texto: str, limit: int = 10):
     matches = df[df["title"].str.contains(texto, case=False, na=False)].head(limit)
 
     if matches.empty:
-        return text_result(
-            f"No se encontraron actividades IATI con '{texto}' en el título.",
-            source_url=xml_source(),
+        return h.empty_result(
+            f"No se encontraron actividades IATI con '{texto}' en el título."
         )
 
     rows = matches[["activity_identifier", "title", "activity_status"]].copy()
-    rows["activity_status"] = rows["activity_status"].map(_STATUS_LABELS).fillna(rows["activity_status"])
-    table = [["Identificador IATI", "Título", "Estado"]] + rows.values.tolist()
+    table = h.build_table(
+        rows.to_dict("records"),
+        [
+            ("activity_identifier", "Identificador IATI"),
+            ("title", "Título"),
+            ("activity_status", "Estado"),
+        ],
+        formatters={"activity_status": h.activity_status_label},
+    )
     text = f"Se encontraron {len(matches)} actividad(es) IATI que coinciden con '{texto}'."
-    return text_result(text, source_url=xml_source(), table=table)
+    return h.text_result(text, table=table)
 
 
 def resumen_actividad(iati_identifier: str):
@@ -38,13 +38,12 @@ def resumen_actividad(iati_identifier: str):
     activity = activities[activities["activity_identifier"] == iati_identifier]
 
     if activity.empty:
-        return text_result(
-            f"No se encontró ninguna actividad IATI con identificador '{iati_identifier}'.",
-            source_url=xml_source(),
+        return h.empty_result(
+            f"No se encontró ninguna actividad IATI con identificador '{iati_identifier}'."
         )
 
     row = activity.iloc[0]
-    status_label = _STATUS_LABELS.get(str(row["activity_status"]), str(row["activity_status"]))
+    status_label = h.activity_status_label(row["activity_status"])
 
     txns = transactions_df()
     txns = txns[txns["activity_identifier"] == iati_identifier]
@@ -58,8 +57,9 @@ def resumen_actividad(iati_identifier: str):
     ]
     table = [["Tipo de transacción", "Total", "Moneda"]]
     for code, total in totals.items():
-        label = _TRANSACTION_TYPE_LABELS.get(str(code), str(code))
-        lines.append(f"{label}: {total:,.2f} {currency}")
-        table.append([label, f"{total:,.2f}", currency])
+        label = h.transaction_type_label(code)
+        amount = h.format_amount(total)
+        lines.append(f"{label}: {amount} {currency}")
+        table.append([label, amount, currency])
 
-    return text_result("\n".join(lines), source_url=xml_source(), table=table)
+    return h.text_result("\n".join(lines), table=table)
