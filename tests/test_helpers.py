@@ -20,11 +20,11 @@ def test_format_amount_uses_two_decimal_places():
 def test_build_table_applies_headers_and_formatters():
     table = h.build_table(
         [{"identifier": "IATI-1", "status": "2"}],
-        [("identifier", "Identificador"), ("status", "Estado")],
+        [("identifier", "Identifier"), ("status", "Status")],
         formatters={"status": h.activity_status_label},
     )
 
     assert table == [
-        ["Identificador", "Estado"],
+        ["Identifier", "Status"],
         ["IATI-1", "Implementation"],
     ]

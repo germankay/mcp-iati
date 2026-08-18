@@ -11,102 +11,106 @@ def register_tools(mcp):
 
 
 def _register_iati_tools(mcp):  # noqa: C901
-    """IATI - herramientas sobre el estandar de datos abiertos de cooperacion
-    internacional (https://iatistandard.org/).
+    """IATI - tools over the international aid transparency open data
+    standard (https://iatistandard.org/).
 
-    Por defecto opera sobre un XML IATI de muestra (actividades del BID en
-    Brasil, ver okfn_iati/data-samples/xml/iadb-Brazil.xml), pero las tools
-    solo usan campos genericos del estandar IATI (identificador, estado,
-    tipo de transaccion) por lo que sirven igual con cualquier otro XML IATI
-    (configurable via MCP_IATI_XML_PATH).
+    By default it operates on a sample IATI XML (IADB activities in Brazil,
+    see okfn_iati/data-samples/xml/iadb-Brazil.xml), but the tools only use
+    generic IATI standard fields (identifier, status, transaction type) so
+    they work just as well with any other IATI XML (configurable via
+    MCP_IATI_XML_PATH).
     """
     mcp.set_plugin_info(
         description=(
-            "Herramientas para consultar actividades y transacciones publicadas "
-            "según el estándar IATI de datos abiertos sobre cooperación y desarrollo."
+            "Tools for querying activities and transactions published under "
+            "the IATI open data standard for development cooperation."
         ),
         instructions=(
-            "Sos un asistente para consultar datos IATI. Interpretá las preguntas "
-            "usando el siguiente glosario y explicá los términos cuando pueda haber "
-            "ambigüedad. No confundas a la organización reportante con quien financia "
-            "o ejecuta una actividad, ni un compromiso con un desembolso o gasto. "
-            "Usá únicamente los datos devueltos por las tools; si la consulta queda "
-            "fuera de su alcance, llamá a no_tool_disponible explicando el motivo.\n\n"
-            "Glosario IATI:\n" + full_glossary_text()
+            "You are an assistant for querying IATI data. Interpret questions "
+            "using the glossary below and explain the terms whenever there may "
+            "be ambiguity. Do not confuse the reporting organisation with the "
+            "one funding or implementing an activity, nor a commitment with a "
+            "disbursement or an expenditure. Use only the data returned by the "
+            "tools; if a question falls outside their scope, call "
+            "no_tool_disponible explaining why.\n\n"
+            "IATI glossary:\n" + full_glossary_text()
         ),
         sample_questions=[
-            "Buscá actividades IATI sobre transporte",
-            "Dame el resumen de la actividad XI-IATI-IADB-BR-L1231",
-            "¿Qué significa que una actividad esté en ejecución?",
-            "¿Cuánto se comprometió y cuánto se desembolsó en esta actividad?",
-            "¿La organización reportante es también quien financia el proyecto?",
+            "Search IATI activities about transport",
+            "Give me a summary of activity XI-IATI-IADB-BR-L1231",
+            "What does it mean for an activity to be in implementation?",
+            "How much was committed and how much was disbursed in this activity?",
+            "Is the reporting organisation also the one funding the project?",
         ],
     )
 
+    # The tool name stays `no_tool_disponible`: the base server's system
+    # preamble instructs the model to call the fallback tool whose name ends
+    # in that suffix (see mcp-server registry.py), for every plugin.
     @mcp.tool()
-    def no_tool_disponible(razon: str | None = None) -> DataToolOutput:
-        """Llamar cuando ninguna otra tool puede responder la pregunta: temas
-            que no son actividades IATI, o preguntas fuera del alcance de
-            los datos cargados.
+    def no_tool_disponible(reason: str | None = None) -> DataToolOutput:
+        """Call when no other tool can answer the question: topics that are
+            not IATI activities, or questions outside the scope of the
+            loaded data.
 
         Args:
-            razon: Breve explicación (1 frase) de por qué ninguna tool aplica.
+            reason: Brief explanation (1 sentence) of why no tool applies.
 
         Examples:
-            - no_tool_disponible(razon="no es una pregunta sobre actividades IATI")
+            - no_tool_disponible(reason="not a question about IATI activities")
         """
-        msg = "Este plugin (mcp-iati) responde únicamente sobre las actividades IATI cargadas."
-        if razon:
-            msg += f" Motivo: {razon}."
+        msg = "This plugin (mcp-iati) only answers questions about the loaded IATI activities."
+        if reason:
+            msg += f" Reason: {reason}."
         return h.text_result(msg, source_url="")
 
-    def buscar_actividades(texto: str, limit: int = 10) -> DataToolOutput:
-        return activities.buscar_actividades(texto, limit=limit)
+    def search_activities(text: str, limit: int = 10) -> DataToolOutput:
+        return activities.search_activities(text, limit=limit)
 
-    buscar_actividades.__doc__ = (
-        """Busca actividades IATI cuyo título contenga el texto indicado.
+    search_activities.__doc__ = (
+        """Search IATI activities whose title contains the given text.
 
-        Útil como primer paso para descubrir el identificador IATI de una actividad,
-        antes de pedir su resumen con resumen_actividad.
+        Useful as a first step to discover an activity's IATI identifier,
+        before requesting its summary with activity_summary.
 
         Args:
-            texto: Subcadena a buscar en el título (sin distinguir mayúsculas/minúsculas).
-            limit: Cantidad máxima de resultados a devolver. Default: 10.
+            text: Substring to search for in the title (case-insensitive).
+            limit: Maximum number of results to return. Default: 10.
 
         Returns:
-            Una tabla con identificador IATI, título y estado de cada coincidencia.
+            A table with the IATI identifier, title and status of each match.
 
-        Términos IATI relevantes:
+        Relevant IATI terms:
         """
-        + glossary_text("actividad IATI", "identificador IATI", "estado de actividad")
+        + glossary_text("IATI activity", "IATI identifier", "activity status")
     )
-    mcp.tool()(buscar_actividades)
+    mcp.tool()(search_activities)
 
-    def resumen_actividad(iati_identifier: str) -> DataToolOutput:
-        return activities.resumen_actividad(iati_identifier)
+    def activity_summary(iati_identifier: str) -> DataToolOutput:
+        return activities.activity_summary(iati_identifier)
 
-    resumen_actividad.__doc__ = (
-        """Devuelve título, estado, organización reportante y totales por tipo
-        de transacción de una actividad IATI.
+    activity_summary.__doc__ = (
+        """Return the title, status, reporting organisation and totals per
+        transaction type of an IATI activity.
 
         Args:
-            iati_identifier: Identificador IATI, por ejemplo "XI-IATI-IADB-BR-L1231".
-                Se obtiene con buscar_actividades.
+            iati_identifier: IATI identifier, for example "XI-IATI-IADB-BR-L1231".
+                Obtained with search_activities.
 
-        Términos IATI relevantes:
+        Relevant IATI terms:
         """
         + glossary_text(
-            "identificador IATI",
-            "organización reportante",
-            "estado de actividad",
-            "transacción",
-            "compromiso",
-            "desembolso",
-            "gasto",
-            "moneda predeterminada",
+            "IATI identifier",
+            "reporting organisation",
+            "activity status",
+            "transaction",
+            "commitment",
+            "disbursement",
+            "expenditure",
+            "default currency",
         )
     )
-    mcp.tool()(resumen_actividad)
+    mcp.tool()(activity_summary)
 
 
 def main() -> None:

@@ -1,62 +1,46 @@
-import unittest
+"""
+Plugin registration: expected tools, glossary in the instructions and the
+`no_tool_disponible` fallback message (uses `fake_mcp` from conftest.py).
+"""
 
 from mcp_iati import register_tools
 
 
-class FakeMCP:
-    def __init__(self):
-        self.plugin_info = None
-        self.tools = []
+def test_register_tools_adds_expected_tools(fake_mcp):
+    register_tools(fake_mcp)
 
-    def set_plugin_info(self, **kwargs):
-        self.plugin_info = kwargs
-
-    def tool(self):
-        def decorator(func):
-            self.tools.append(func)
-            return func
-
-        return decorator
+    assert list(fake_mcp.tools) == [
+        "no_tool_disponible",
+        "search_activities",
+        "activity_summary",
+    ]
 
 
-class ToolDescriptionsTest(unittest.TestCase):
-    def test_register_tools_adds_expected_tools(self):
-        mcp = FakeMCP()
+def test_plugin_instructions_include_full_glossary(fake_mcp):
+    register_tools(fake_mcp)
 
-        register_tools(mcp)
+    assert fake_mcp.plugin_info is not None
+    instructions = fake_mcp.plugin_info["instructions"]
+    assert "IATI glossary:\n" in instructions
+    assert "IATI activity" in instructions
+    assert "commitment" in instructions
+    assert "disbursement" in instructions
 
-        self.assertEqual(
-            [tool.__name__ for tool in mcp.tools],
-            ["no_tool_disponible", "buscar_actividades", "resumen_actividad"],
-        )
 
-    def test_plugin_instructions_include_full_glossary(self):
-        mcp = FakeMCP()
+def test_plugin_sample_questions_cover_main_use_cases(fake_mcp):
+    register_tools(fake_mcp)
 
-        register_tools(mcp)
+    questions = fake_mcp.plugin_info["sample_questions"]
+    assert "Search IATI activities about transport" in questions
+    assert "Give me a summary of activity XI-IATI-IADB-BR-L1231" in questions
 
-        self.assertIsNotNone(mcp.plugin_info)
-        self.assertIn("Glosario IATI:\n", mcp.plugin_info["instructions"])
-        self.assertIn("actividad IATI", mcp.plugin_info["instructions"])
-        self.assertIn("compromiso", mcp.plugin_info["instructions"])
-        self.assertIn("desembolso", mcp.plugin_info["instructions"])
 
-    def test_plugin_sample_questions_cover_main_use_cases(self):
-        mcp = FakeMCP()
+def test_no_tool_disponible_returns_clear_fallback_message(fake_mcp):
+    register_tools(fake_mcp)
 
-        register_tools(mcp)
+    result = fake_mcp.tools["no_tool_disponible"]("not a question about IATI activities")
 
-        self.assertIn("Buscá actividades IATI sobre transporte", mcp.plugin_info["sample_questions"])
-        self.assertIn("Dame el resumen de la actividad XI-IATI-IADB-BR-L1231", mcp.plugin_info["sample_questions"])
-
-    def test_no_tool_disponible_returns_clear_fallback_message(self):
-        mcp = FakeMCP()
-
-        register_tools(mcp)
-
-        no_tool_disponible = next(tool for tool in mcp.tools if tool.__name__ == "no_tool_disponible")
-        result = no_tool_disponible("no es una pregunta IATI")
-
-        self.assertEqual(result.structuredContent, {"sources": []})
-        self.assertIn("responde únicamente sobre las actividades IATI cargadas", result.content[0].text)
-        self.assertIn("Motivo: no es una pregunta IATI.", result.content[0].text)
+    assert result.structuredContent == {"sources": []}
+    text = result.content[0].text
+    assert "only answers questions about the loaded IATI activities" in text
+    assert "Reason: not a question about IATI activities." in text

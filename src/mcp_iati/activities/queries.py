@@ -3,43 +3,48 @@
 Field names and codes (activity_status, transaction_type) come from the IATI
 standard codelists, so these queries work for any IATI activities XML, not
 just the bundled sample - see data.py.
+
+Each query passes `xml_source()` as the source; the raw table data is
+embedded into the AI-facing text by `h.text_result` (see helpers/format.py).
 """
 from mcp_iati import helpers as h
-from mcp_iati.activities.data import activities_df, transactions_df
+from mcp_iati.activities.data import activities_df, transactions_df, xml_source
 
 
-def buscar_actividades(texto: str, limit: int = 10):
+def search_activities(text: str, limit: int = 10):
     """Search IATI activities by a substring of their title."""
     df = activities_df()
-    matches = df[df["title"].str.contains(texto, case=False, na=False)].head(limit)
+    matches = df[df["title"].str.contains(text, case=False, na=False)].head(limit)
 
     if matches.empty:
         return h.empty_result(
-            f"No se encontraron actividades IATI con '{texto}' en el título."
+            f"No IATI activities found with '{text}' in the title.",
+            source_url=xml_source(),
         )
 
     rows = matches[["activity_identifier", "title", "activity_status"]].copy()
     table = h.build_table(
         rows.to_dict("records"),
         [
-            ("activity_identifier", "Identificador IATI"),
-            ("title", "Título"),
-            ("activity_status", "Estado"),
+            ("activity_identifier", "IATI identifier"),
+            ("title", "Title"),
+            ("activity_status", "Status"),
         ],
         formatters={"activity_status": h.activity_status_label},
     )
-    text = f"Se encontraron {len(matches)} actividad(es) IATI que coinciden con '{texto}'."
-    return h.text_result(text, table=table)
+    summary = f"Found {len(matches)} IATI activity(ies) matching '{text}'."
+    return h.text_result(summary, source_url=xml_source(), table=table)
 
 
-def resumen_actividad(iati_identifier: str):
+def activity_summary(iati_identifier: str):
     """Return title, status and total committed/disbursed amounts for one IATI activity."""
     activities = activities_df()
     activity = activities[activities["activity_identifier"] == iati_identifier]
 
     if activity.empty:
         return h.empty_result(
-            f"No se encontró ninguna actividad IATI con identificador '{iati_identifier}'."
+            f"No IATI activity found with identifier '{iati_identifier}'.",
+            source_url=xml_source(),
         )
 
     row = activity.iloc[0]
@@ -50,16 +55,15 @@ def resumen_actividad(iati_identifier: str):
     totals = txns.groupby("transaction_type")["value"].sum()
     currency = row.get("default_currency") or ""
 
+    # The text carries only the header; the per-type totals travel in the
+    # table, which `text_result` embeds in full into the AI-facing text.
     lines = [
         f"{row['title']} ({iati_identifier})",
-        f"Estado: {status_label}",
-        f"Organización reportante: {row.get('reporting_org_name') or row.get('reporting_org_ref')}",
+        f"Status: {status_label}",
+        f"Reporting organisation: {row.get('reporting_org_name') or row.get('reporting_org_ref')}",
     ]
-    table = [["Tipo de transacción", "Total", "Moneda"]]
+    table = [["Transaction type", "Total", "Currency"]]
     for code, total in totals.items():
-        label = h.transaction_type_label(code)
-        amount = h.format_amount(total)
-        lines.append(f"{label}: {amount} {currency}")
-        table.append([label, amount, currency])
+        table.append([h.transaction_type_label(code), h.format_amount(total), currency])
 
-    return h.text_result("\n".join(lines), table=table)
+    return h.text_result("\n".join(lines), source_url=xml_source(), table=table)

@@ -1,53 +1,57 @@
-import importlib.util
-from pathlib import Path
-import unittest
+"""
+The central glossary (glossary.py) contains the minimum IATI terms and its
+text builders behave as the tools and plugin_info expect.
+"""
 
+import pytest
 
-GLOSSARY_MODULE = Path(__file__).parents[1] / "src" / "mcp_iati" / "glossary.py"
-spec = importlib.util.spec_from_file_location("mcp_iati_glossary", GLOSSARY_MODULE)
-glossary = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(glossary)
-
-IATI_GLOSSARY = glossary.IATI_GLOSSARY
-full_glossary_text = glossary.full_glossary_text
-glossary_text = glossary.glossary_text
+from mcp_iati.glossary import IATI_GLOSSARY, full_glossary_text, glossary_text
 
 
 EXPECTED_TERMS = {
-    "actividad IATI",
-    "identificador IATI",
-    "organización reportante",
-    "estado de actividad",
-    "transacción",
-    "compromiso",
-    "desembolso",
-    "gasto",
-    "moneda predeterminada",
-    "organización participante",
+    "IATI activity",
+    "IATI identifier",
+    "reporting organisation",
+    "activity status",
+    "transaction",
+    "commitment",
+    "disbursement",
+    "expenditure",
+    "default currency",
+    "participating organisation",
     "sector",
-    "país o región receptora",
+    "recipient country or region",
 }
 
 
-class GlossaryTest(unittest.TestCase):
-    def test_glossary_contains_expected_iati_terms(self):
-        self.assertLessEqual(EXPECTED_TERMS, IATI_GLOSSARY.keys())
-        self.assertTrue(all(IATI_GLOSSARY[term].strip() for term in EXPECTED_TERMS))
+def test_glossary_contains_expected_iati_terms():
+    assert EXPECTED_TERMS <= IATI_GLOSSARY.keys()
+    assert all(IATI_GLOSSARY[term].strip() for term in EXPECTED_TERMS)
 
-    def test_glossary_text_only_includes_requested_terms(self):
-        text = glossary_text("compromiso", "desembolso")
 
-        self.assertIn("Compromiso:", text)
-        self.assertIn("Desembolso:", text)
-        self.assertNotIn("Gasto:", text)
+def test_glossary_text_only_includes_requested_terms():
+    text = glossary_text("commitment", "disbursement")
 
-    def test_full_glossary_text_includes_every_definition(self):
-        text = full_glossary_text()
+    assert "Commitment:" in text
+    assert "Disbursement:" in text
+    assert "Expenditure:" not in text
 
-        for term, definition in IATI_GLOSSARY.items():
-            self.assertIn(term.title(), text)
-            self.assertIn(definition, text)
 
-    def test_glossary_text_rejects_unknown_terms(self):
-        with self.assertRaisesRegex(KeyError, "desconocido"):
-            glossary_text("término desconocido")
+def test_glossary_text_preserves_acronym_case():
+    text = glossary_text("IATI activity")
+
+    assert "- IATI activity:" in text
+    assert "Iati" not in text
+
+
+def test_full_glossary_text_includes_every_definition():
+    text = full_glossary_text()
+
+    for term, definition in IATI_GLOSSARY.items():
+        assert f"- {term[0].upper()}{term[1:]}:" in text
+        assert definition in text
+
+
+def test_glossary_text_rejects_unknown_terms():
+    with pytest.raises(KeyError, match="Unknown IATI terms"):
+        glossary_text("unknown term")

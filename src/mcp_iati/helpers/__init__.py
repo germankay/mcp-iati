@@ -1,11 +1,14 @@
 """Shared helpers used by the IATI tools.
 
-The package follows the organization used by ``mcp-datos-uruguay-ben``:
-tool modules focus on queries while reusable formatting and response logic
-lives under a single helpers namespace.
+Tool modules focus on queries while reusable formatting and response logic
+lives under a single helpers namespace. ``text_result`` embeds the raw table
+as text for the AI and appends the ``NO_SPECULATION`` guardrail (see
+``format.py``).
 """
 
 from .format import (
+    ALREADY_TABLE,
+    NO_SPECULATION,
     activity_status_label,
     build_table,
     empty_result,
@@ -15,6 +18,8 @@ from .format import (
 )
 
 __all__ = [
+    "ALREADY_TABLE",
+    "NO_SPECULATION",
     "activity_status_label",
     "build_table",
     "empty_result",

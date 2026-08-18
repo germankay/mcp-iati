@@ -1,107 +1,120 @@
 # MCP IATI
 
-**Nota:** Carpeta de prueba local. Es un punto de partida para un futuro plugin `mcp-server` que
-procese archivos del estándar [IATI](https://iatistandard.org/) (actividades
-y organizaciones), inspirado en los plugins existentes
-[`mcp-datos-uruguay-ben`](../mcp-datos-uruguay-ben/README.md) (tools en
-Python bien documentadas, con `plugin_info`/`instructions`/`sample_questions`
-y una tool de fallback `no_tool_disponible`) y
-[`mcp-dados-brasil`](../mcp-dados-brasil/README.md) (estructura de paquete
-simple, un módulo de tools separado del wiring de registro).
+**Note:** Local proof of concept. Starting point for a future `mcp-server`
+plugin that processes files following the
+[IATI](https://iatistandard.org/) standard (activities and organisations):
+documented Python tools, with `plugin_info`/`instructions`/`sample_questions`,
+a `no_tool_disponible` fallback tool and a tools module separate from the
+registration wiring.
 
-Por ahora define dos tools reales sobre un XML IATI de muestra (actividades
-del BID en Brasil, `iadb-Brazil.xml`, descargado bajo demanda desde
+For now it defines two real tools over a sample IATI XML (IADB activities in
+Brazil, `iadb-Brazil.xml`, downloaded on demand from
 [okfn/okfn_iati](https://github.com/okfn/okfn_iati/tree/main/data-samples/xml)):
 
-- `buscar_actividades(texto, limit=10)`: busca actividades por título.
-- `resumen_actividad(iati_identifier)`: título, estado y totales
-  comprometido/desembolsado de una actividad.
+- `search_activities(text, limit=10)`: search activities by title.
+- `activity_summary(iati_identifier)`: title, status and committed/disbursed
+  totals for one activity.
 
-**Principio guía:** estas tools solo usan campos genéricos del estándar IATI
-(identificador, estado, tipo de transacción), no lógica específica de Brasil
-o del BID — deben servir igual para cualquier otro XML IATI (ver las variables
-`MCP_IATI_SAMPLE` y `MCP_IATI_XML_PATH` más abajo).
+**Guiding principle:** these tools only use generic IATI standard fields
+(identifier, status, transaction type), never Brazil- or IADB-specific logic -
+they must work just as well with any other IATI XML (see the
+`MCP_IATI_SAMPLE` and `MCP_IATI_XML_PATH` variables below).
 
-## De dónde salen los datos
+## Where the data comes from
 
-Los XML de muestra son datos reales pero **no se versionan en este repo**: se
-descargan bajo demanda desde `data-samples/xml/` del repo
-[okfn/okfn_iati](https://github.com/okfn/okfn_iati) al directorio de datos del
-usuario (`~/.local/share/mcp-iati/xml/` en Linux, via `platformdirs`), una
-sola vez. El `.gitignore` excluye cualquier `*.xml` por las dudas.
+The sample XMLs are real-life data but are **not versioned in this repo**:
+they are downloaded on demand from `data-samples/xml/` in the
+[okfn/okfn_iati](https://github.com/okfn/okfn_iati) repo into the user data
+directory (`~/.local/share/mcp-iati/xml/` on Linux, via `platformdirs`), only
+once. The `.gitignore` excludes any `*.xml` just in case.
 
-## Cómo procesa el XML
+## How the XML is processed
 
-1. `mcp_iati/activities/data.py` convierte el XML configurado a CSVs planos
-   una sola vez por proceso, usando `okfn_iati.IatiMultiCsvConverter().xml_to_csv_folder(...)`
-   (la misma librería que usa `ckanext-iati-generator` en producción, pero en
-   sentido XML → CSV en vez de CSV → XML).
-2. Las tools (`mcp_iati/activities/queries.py`) consultan esos CSV con
-   `pandas`, no el XML — así se evita reparsear un archivo de varios MB en
-   cada llamada.
-3. Por defecto usa `iadb-Brazil.xml`. Para usar otra muestra del repo
-   `okfn_iati` (se descarga sola) o un archivo local, sin tocar código:
+1. `mcp_iati/activities/data.py` converts the configured XML to flat CSVs
+   once per process, using `okfn_iati.IatiMultiCsvConverter().xml_to_csv_folder(...)`
+   (the same library `ckanext-iati-generator` uses in production, but in the
+   XML -> CSV direction instead of CSV -> XML).
+2. The tools (`mcp_iati/activities/queries.py`) query those CSVs with
+   `pandas`, not the XML - this avoids reparsing a multi-MB file on every
+   call.
+3. It uses `iadb-Brazil.xml` by default. To use another sample from the
+   `okfn_iati` repo (downloaded automatically) or a local file, without
+   touching code:
 
    ```bash
-   # otra muestra de https://github.com/okfn/okfn_iati/tree/main/data-samples/xml
+   # another sample from https://github.com/okfn/okfn_iati/tree/main/data-samples/xml
    export MCP_IATI_SAMPLE=iadb-Argentina.xml
 
-   # o un archivo local cualquiera (no descarga nada)
-   export MCP_IATI_XML_PATH=/ruta/a/otro-archivo-iati.xml
+   # or any local file (downloads nothing)
+   export MCP_IATI_XML_PATH=/path/to/another-iati-file.xml
    ```
 
-## Desarrollo
+## Development
 
 ```bash
-# Instalar dependencias (mcp-server desde git, okfn-iati desde PyPI)
+# Install dependencies (mcp-server from git, okfn-iati from PyPI)
 uv sync
 
 # Lint
 uv run ruff check src
 ```
 
-## Agregar esto a un mcp-server local
+## Adding this to a local mcp-server
 
-Desde la carpeta `mcp-server/`, instalá este paquete en el mismo entorno virtual:
+From the `mcp-server/` folder, install this package into the same virtual
+environment:
 
 ```bash
 uv pip install -e ../mcp-iati
 uv run mcp-server
 ```
 
-Las tools quedarán disponibles con el prefijo `mcp_iati_`.
+The tools become available with the `mcp_iati_` prefix.
 
-## Glosario IATI
+## IATI glossary
 
-Las descripciones de las tools y las instrucciones del plugin comparten un
-glosario central definido en `src/mcp_iati/glossary.py`. Su objetivo es que el
-modelo interprete de forma consistente los términos del estándar y explique
-las diferencias que suelen ser ambiguas, especialmente entre organización
-reportante, financiadora y ejecutora, y entre compromiso, desembolso y gasto.
+The tool descriptions and the plugin instructions share a central glossary
+defined in `src/mcp_iati/glossary.py`. Its goal is that the model interprets
+the standard's terms consistently and explains the distinctions that tend to
+be ambiguous, especially between reporting, funding and implementing
+organisations, and between commitment, disbursement and expenditure.
 
-| Término | Definición |
+| Term | Definition |
 | --- | --- |
-| Actividad IATI | Intervención de cooperación o desarrollo; puede ser un proyecto, programa u otra unidad de trabajo. |
-| Identificador IATI | Código global y único de una actividad, usado también para vincular sus transacciones. |
-| Organización reportante | Organización responsable de publicar y mantener los datos; no necesariamente financia o ejecuta. |
-| Estado de actividad | Etapa del ciclo de vida, como planificación, ejecución o cierre. |
-| Transacción | Movimiento financiero asociado a una actividad, con tipo, fecha, valor y moneda. |
-| Compromiso | Obligación financiera asumida para aportar fondos. |
-| Desembolso | Fondos puestos a disposición o transferidos para una actividad. |
-| Gasto | Fondos utilizados en la actividad por la organización reportante u otra organización. |
-| Moneda predeterminada | Moneda usada cuando un valor no especifica otra. |
-| Organización participante | Organización vinculada con un rol, como financiación, implementación o rendición. |
-| Sector | Área temática o económica clasificada mediante un código. |
-| País o región receptora | Ubicación que recibe los beneficios previstos de la actividad. |
+| IATI activity | A development or cooperation intervention; it can be a project, a programme or another unit of work. |
+| IATI identifier | Globally unique code for an activity, also used to link its transactions. |
+| Reporting organisation | Organisation responsible for publishing and maintaining the data; not necessarily funding or implementing. |
+| Activity status | Lifecycle stage, such as pipeline, implementation or closed. |
+| Transaction | Financial movement associated with an activity, with type, date, value and currency. |
+| Commitment | Financial obligation undertaken to provide funds. |
+| Disbursement | Funds made available or transferred for an activity. |
+| Expenditure | Funds spent on the activity by the reporting or another organisation. |
+| Default currency | Currency used when a value does not specify another one. |
+| Participating organisation | Organisation linked with a role, such as funding, implementation or accountability. |
+| Sector | Thematic or economic area classified via a code. |
+| Recipient country or region | Location receiving the intended benefits of the activity. |
 
-Cuando se agregue una nueva tool, se deben reutilizar las definiciones del
-módulo central en lugar de duplicarlas en su docstring.
+When adding a new tool, reuse the definitions from the central module
+instead of duplicating them in its docstring.
 
-## Pruebas
+## Tests
 
 ```bash
 uv run pytest
 ```
 
-Las pruebas verifican que el glosario incluya los conceptos mínimos y que las
-descripciones de las tools expongan los términos pertinentes al modelo.
+The tests run offline: `tests/conftest.py` preloads the data cache with
+synthetic DataFrames and sets `MCP_IATI_XML_PATH`, so nothing is downloaded.
+They cover:
+
+- that the glossary includes the minimum concepts and that the tool
+  descriptions expose the relevant terms to the model;
+- regression of the queries (tables, sources, empty cases);
+- the **raw-data contract** (`test_raw_data_in_ai_response.py`): the gateway
+  sends the AI only the text of the response, so every tool that returns a
+  table must embed it verbatim in that text (done by `helpers.text_result`).
+  When adding a new tool with a table, add it to the `DATA_TOOLS` list in
+  that test.
+
+On GitHub, `.github/workflows/python-lint.yml` runs ruff + pytest on every
+push.
