@@ -66,6 +66,11 @@ changing the source, data directory or cache duration.
 | `MCP_IATI_DATA_DIR` | Directory for downloaded XML files and generated CSV files. | User data directory provided by `platformdirs`. |
 | `MCP_IATI_CACHE_TTL_SECONDS` | Configurable cache duration in seconds; must be greater than zero. | `604800` (7 days). |
 
+Downloaded XML files and converted CSV folders are reused while they remain
+inside this TTL. Once it expires, the XML is downloaded again and the CSVs
+are regenerated. CSV caches use a key derived from the configured origin, so
+Argentina, Brazil and custom URLs never share the same converted files.
+
 The source precedence is:
 
 1. `MCP_IATI_XML_PATH`.

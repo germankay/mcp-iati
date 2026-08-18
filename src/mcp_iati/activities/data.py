@@ -13,7 +13,9 @@ directory. Pick a different sample with MCP_IATI_SAMPLE (e.g.
 MCP_IATI_XML_PATH to use a local file with no download at all.
 """
 import hashlib
+import shutil
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -29,10 +31,18 @@ _SAMPLES_BASE_URL = "https://raw.githubusercontent.com/okfn/okfn_iati/main/data-
 _cache: dict = {}
 
 
+def _cache_is_fresh(path: Path) -> bool:
+    """Return whether a cached file is still inside the configured TTL."""
+    if not path.exists():
+        return False
+    age_seconds = max(0, time.time() - path.stat().st_mtime)
+    return age_seconds < get_settings().cache_ttl_seconds
+
+
 def _download_xml(url: str, filename: str) -> Path:
-    """Download an XML source unless it is already available locally."""
+    """Download an XML source unless a fresh cached copy exists."""
     target = get_settings().ensure_data_dir() / "xml" / filename
-    if target.exists():
+    if _cache_is_fresh(target):
         return target
     try:
         with urllib.request.urlopen(url, timeout=60) as resp:
@@ -81,8 +91,41 @@ def xml_source() -> str:
     return str(xml_path())
 
 
+def _source_cache_key() -> str:
+    """Return a stable cache key for the configured XML origin."""
+    settings = get_settings()
+    if settings.xml_path:
+        source = f"path:{settings.xml_path.resolve()}"
+    elif settings.xml_url:
+        source = f"url:{settings.xml_url}"
+    else:
+        source = f"sample:{settings.sample}"
+    return hashlib.sha256(source.encode()).hexdigest()[:16]
+
+
+def _csv_cache_is_fresh(folder: Path) -> bool:
+    """Return whether a complete CSV cache exists and is still valid."""
+    required_files = (
+        folder / "activities.csv",
+        folder / "transactions.csv",
+        folder / ".complete",
+    )
+    return all(path.exists() for path in required_files) and _cache_is_fresh(
+        folder / ".complete"
+    )
+
+
+def _clear_expired_memory_cache() -> None:
+    """Drop in-process DataFrames when their disk cache has expired."""
+    cached_folder = _cache.get("csv_folder")
+    if cached_folder and not _csv_cache_is_fresh(Path(cached_folder)):
+        for key in ("csv_folder", "activities", "transactions"):
+            _cache.pop(key, None)
+
+
 def _csv_folder() -> Path:
-    """Convert the configured XML to flat CSVs once per process and cache the folder."""
+    """Return fresh, source-specific CSVs, converting the XML when needed."""
+    _clear_expired_memory_cache()
     if "csv_folder" not in _cache:
         path = xml_path()
         if not path.exists():
@@ -92,21 +135,46 @@ def _csv_folder() -> Path:
             )
         csv_parent = get_settings().ensure_data_dir() / "csv"
         csv_parent.mkdir(parents=True, exist_ok=True)
-        tmp_dir = Path(tempfile.mkdtemp(prefix="mcp_iati_", dir=csv_parent))
+        cache_key = _source_cache_key()
+        cache_dir = csv_parent / cache_key
+        if _csv_cache_is_fresh(cache_dir):
+            _cache["csv_folder"] = cache_dir
+            return cache_dir
+
+        tmp_dir = Path(
+            tempfile.mkdtemp(prefix=f"{cache_key}-", dir=csv_parent)
+        )
         converter = IatiMultiCsvConverter()
         if not converter.xml_to_csv_folder(path, tmp_dir):
+            shutil.rmtree(tmp_dir)
             raise RuntimeError(f"Failed to convert {path} to CSV: {converter.latest_errors}")
-        _cache["csv_folder"] = tmp_dir
+        required_files = (
+            tmp_dir / "activities.csv",
+            tmp_dir / "transactions.csv",
+        )
+        if not all(file.exists() for file in required_files):
+            shutil.rmtree(tmp_dir)
+            raise RuntimeError(
+                f"IATI conversion did not produce the required CSVs for {path}."
+            )
+
+        (tmp_dir / ".complete").touch()
+        if cache_dir.exists():
+            shutil.rmtree(cache_dir)
+        tmp_dir.rename(cache_dir)
+        _cache["csv_folder"] = cache_dir
     return _cache["csv_folder"]
 
 
 def activities_df() -> pd.DataFrame:
+    _clear_expired_memory_cache()
     if "activities" not in _cache:
         _cache["activities"] = pd.read_csv(_csv_folder() / "activities.csv", dtype=str)
     return _cache["activities"]
 
 
 def transactions_df() -> pd.DataFrame:
+    _clear_expired_memory_cache()
     if "transactions" not in _cache:
         df = pd.read_csv(_csv_folder() / "transactions.csv", dtype=str)
         df["value"] = pd.to_numeric(df["value"], errors="coerce")
