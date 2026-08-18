@@ -10,7 +10,8 @@ y una tool de fallback `no_tool_disponible`) y
 simple, un módulo de tools separado del wiring de registro).
 
 Por ahora define dos tools reales sobre un XML IATI de muestra (actividades
-del BID en Brasil, ver [`okfn_iati/data-samples/xml/iadb-Brazil.xml`](../okfn_iati/data-samples/xml/iadb-Brazil.xml)):
+del BID en Brasil, `iadb-Brazil.xml`, descargado bajo demanda desde
+[okfn/okfn_iati](https://github.com/okfn/okfn_iati/tree/main/data-samples/xml)):
 
 - `buscar_actividades(texto, limit=10)`: busca actividades por título.
 - `resumen_actividad(iati_identifier)`: título, estado y totales
@@ -18,8 +19,16 @@ del BID en Brasil, ver [`okfn_iati/data-samples/xml/iadb-Brazil.xml`](../okfn_ia
 
 **Principio guía:** estas tools solo usan campos genéricos del estándar IATI
 (identificador, estado, tipo de transacción), no lógica específica de Brasil
-o del BID — deben servir igual para cualquier otro XML IATI (ver la variable
-`MCP_IATI_XML_PATH` más abajo).
+o del BID — deben servir igual para cualquier otro XML IATI (ver las variables
+`MCP_IATI_SAMPLE` y `MCP_IATI_XML_PATH` más abajo).
+
+## De dónde salen los datos
+
+Los XML de muestra son datos reales pero **no se versionan en este repo**: se
+descargan bajo demanda desde `data-samples/xml/` del repo
+[okfn/okfn_iati](https://github.com/okfn/okfn_iati) al directorio de datos del
+usuario (`~/.local/share/mcp-iati/xml/` en Linux, via `platformdirs`), una
+sola vez. El `.gitignore` excluye cualquier `*.xml` por las dudas.
 
 ## Cómo procesa el XML
 
@@ -30,17 +39,21 @@ o del BID — deben servir igual para cualquier otro XML IATI (ver la variable
 2. Las tools (`mcp_iati/activities/queries.py`) consultan esos CSV con
    `pandas`, no el XML — así se evita reparsear un archivo de varios MB en
    cada llamada.
-3. Por defecto usa `iadb-Brazil.xml`. Para apuntar a otro archivo (por
-   ejemplo `iadb-Argentina.xml`) sin tocar código:
+3. Por defecto usa `iadb-Brazil.xml`. Para usar otra muestra del repo
+   `okfn_iati` (se descarga sola) o un archivo local, sin tocar código:
 
    ```bash
+   # otra muestra de https://github.com/okfn/okfn_iati/tree/main/data-samples/xml
+   export MCP_IATI_SAMPLE=iadb-Argentina.xml
+
+   # o un archivo local cualquiera (no descarga nada)
    export MCP_IATI_XML_PATH=/ruta/a/otro-archivo-iati.xml
    ```
 
 ## Desarrollo
 
 ```bash
-# Instalar dependencias (usa el mcp-server y el okfn_iati locales del monorepo, ver [tool.uv.sources])
+# Instalar dependencias (mcp-server desde git, okfn-iati desde PyPI)
 uv sync
 
 # Lint
