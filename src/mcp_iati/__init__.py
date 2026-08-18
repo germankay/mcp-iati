@@ -1,7 +1,6 @@
-from mcp.types import CallToolResult, TextContent
-
 from mcp_server import DataToolOutput
 
+from mcp_iati import helpers as h
 from mcp_iati.activities import queries as activities
 from mcp_iati.glossary import full_glossary_text, glossary_text
 
@@ -59,10 +58,7 @@ def _register_iati_tools(mcp):  # noqa: C901
         msg = "Este plugin (mcp-iati) responde únicamente sobre las actividades IATI cargadas."
         if razon:
             msg += f" Motivo: {razon}."
-        return CallToolResult(
-            content=[TextContent(type="text", text=msg)],
-            structuredContent={"sources": []},
-        )
+        return h.text_result(msg, source_url="")
 
     def buscar_actividades(texto: str, limit: int = 10) -> DataToolOutput:
         return activities.buscar_actividades(texto, limit=limit)
