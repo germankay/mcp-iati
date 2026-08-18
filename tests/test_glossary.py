@@ -1,16 +1,11 @@
-import importlib.util
-from pathlib import Path
-import unittest
+"""
+El glosario central (glossary.py) contiene los términos IATI mínimos y sus
+builders de texto se comportan como esperan las tools y el plugin_info.
+"""
 
+import pytest
 
-GLOSSARY_MODULE = Path(__file__).parents[1] / "src" / "mcp_iati" / "glossary.py"
-spec = importlib.util.spec_from_file_location("mcp_iati_glossary", GLOSSARY_MODULE)
-glossary = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(glossary)
-
-IATI_GLOSSARY = glossary.IATI_GLOSSARY
-full_glossary_text = glossary.full_glossary_text
-glossary_text = glossary.glossary_text
+from mcp_iati.glossary import IATI_GLOSSARY, full_glossary_text, glossary_text
 
 
 EXPECTED_TERMS = {
@@ -29,25 +24,27 @@ EXPECTED_TERMS = {
 }
 
 
-class GlossaryTest(unittest.TestCase):
-    def test_glossary_contains_expected_iati_terms(self):
-        self.assertLessEqual(EXPECTED_TERMS, IATI_GLOSSARY.keys())
-        self.assertTrue(all(IATI_GLOSSARY[term].strip() for term in EXPECTED_TERMS))
+def test_glossary_contains_expected_iati_terms():
+    assert EXPECTED_TERMS <= IATI_GLOSSARY.keys()
+    assert all(IATI_GLOSSARY[term].strip() for term in EXPECTED_TERMS)
 
-    def test_glossary_text_only_includes_requested_terms(self):
-        text = glossary_text("compromiso", "desembolso")
 
-        self.assertIn("Compromiso:", text)
-        self.assertIn("Desembolso:", text)
-        self.assertNotIn("Gasto:", text)
+def test_glossary_text_only_includes_requested_terms():
+    text = glossary_text("compromiso", "desembolso")
 
-    def test_full_glossary_text_includes_every_definition(self):
-        text = full_glossary_text()
+    assert "Compromiso:" in text
+    assert "Desembolso:" in text
+    assert "Gasto:" not in text
 
-        for term, definition in IATI_GLOSSARY.items():
-            self.assertIn(term.title(), text)
-            self.assertIn(definition, text)
 
-    def test_glossary_text_rejects_unknown_terms(self):
-        with self.assertRaisesRegex(KeyError, "desconocido"):
-            glossary_text("término desconocido")
+def test_full_glossary_text_includes_every_definition():
+    text = full_glossary_text()
+
+    for term, definition in IATI_GLOSSARY.items():
+        assert term.title() in text
+        assert definition in text
+
+
+def test_glossary_text_rejects_unknown_terms():
+    with pytest.raises(KeyError, match="desconocido"):
+        glossary_text("término desconocido")

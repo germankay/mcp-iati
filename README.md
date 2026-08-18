@@ -2,12 +2,9 @@
 
 **Nota:** Carpeta de prueba local. Es un punto de partida para un futuro plugin `mcp-server` que
 procese archivos del estándar [IATI](https://iatistandard.org/) (actividades
-y organizaciones), inspirado en los plugins existentes
-[`mcp-datos-uruguay-ben`](../mcp-datos-uruguay-ben/README.md) (tools en
-Python bien documentadas, con `plugin_info`/`instructions`/`sample_questions`
-y una tool de fallback `no_tool_disponible`) y
-[`mcp-dados-brasil`](../mcp-dados-brasil/README.md) (estructura de paquete
-simple, un módulo de tools separado del wiring de registro).
+y organizaciones): tools en Python documentadas, con
+`plugin_info`/`instructions`/`sample_questions`, una tool de fallback
+`no_tool_disponible` y un módulo de tools separado del wiring de registro.
 
 Por ahora define dos tools reales sobre un XML IATI de muestra (actividades
 del BID en Brasil, `iadb-Brazil.xml`, descargado bajo demanda desde
@@ -103,5 +100,18 @@ módulo central en lugar de duplicarlas en su docstring.
 uv run pytest
 ```
 
-Las pruebas verifican que el glosario incluya los conceptos mínimos y que las
-descripciones de las tools expongan los términos pertinentes al modelo.
+Las pruebas corren offline: `tests/conftest.py` precarga el cache de datos con
+DataFrames sintéticos y fija `MCP_IATI_XML_PATH`, así que no descargan nada.
+Cubren:
+
+- que el glosario incluya los conceptos mínimos y que las descripciones de las
+  tools expongan los términos pertinentes al modelo;
+- regresión de las queries (tablas, fuentes, casos vacíos);
+- el **contrato de datos crudos** (`test_raw_data_in_ai_response.py`): el
+  gateway le manda a la IA solamente el texto de la respuesta, así que toda
+  tool que devuelva tabla debe embeberla verbatim en ese texto (lo hace
+  `helpers.text_result`). Al agregar una
+  tool nueva con tabla, sumarla a la lista `DATA_TOOLS` de ese test.
+
+En GitHub, `.github/workflows/python-lint.yml` corre ruff + pytest en cada
+push.

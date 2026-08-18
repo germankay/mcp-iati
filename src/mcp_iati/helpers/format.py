@@ -7,7 +7,26 @@ from okfn_iati.enums import ActivityStatus, TransactionType
 
 from mcp_server.results import text_result as _text_result
 
-from mcp_iati.activities.data import xml_source
+
+# Nota para la IA: la tabla renderizada ya se mostró en pantalla vía
+# structuredContent; la copia en texto es para que analice los números reales.
+ALREADY_TABLE = (
+    "Al usuario ya se le mostró una tabla renderizada en pantalla con estos "
+    "datos. Más abajo te adjuntamos los mismos datos en texto para que analices "
+    "los números; no copies la tabla de vuelta en tu respuesta, interpretala."
+)
+
+# Guardrail para la IA: se appendea automáticamente a toda respuesta desde
+# `text_result`. Evita que el modelo invente datos que no están en el XML y
+# que mezcle los roles/conceptos IATI que suelen confundirse.
+SIN_ESPECULAR = (
+    "Respondé únicamente con los datos presentes en esta respuesta y en los "
+    "datos IATI cargados. NO inventes montos, monedas, fechas ni nombres de "
+    "organizaciones que no aparezcan explícitamente en los datos. No confundas "
+    "a la organización reportante con quien financia o ejecuta la actividad, "
+    "ni un compromiso con un desembolso o gasto. Limitate a describir qué "
+    "muestran los datos."
+)
 
 
 _STATUS_LABELS = {
@@ -20,19 +39,39 @@ _TRANSACTION_TYPE_LABELS = {
 }
 
 
+def _table_to_text(table):
+    """Renderiza la tabla (lista de filas) como bloque delimitado por ' | '."""
+    if not table:
+        return ""
+    return "\n".join(" | ".join(str(cell) for cell in row) for row in table)
+
+
 def text_result(
     text: str,
+    source_url: str | list[str],
     table: list[list[Any]] | None = None,
-    source_url: str | None = None,
 ):
-    """Build a standard IATI response pointing to the configured XML."""
-    source = xml_source() if source_url is None else source_url
-    return _text_result(text, source_url=source, table=table)
+    """Build the standard IATI response.
+
+    Embeds the full table as text for the AI (see module docstring) and
+    appends the no-speculation guardrail. `source_url` is explicit so this
+    module stays independent from the data layer; queries pass
+    `data.xml_source()`.
+    """
+    body = text
+    if table:
+        body += (
+            f"\n\n{ALREADY_TABLE}\n\n"
+            "=== Datos completos (para tu análisis) ===\n"
+            + _table_to_text(table)
+        )
+    body = f"{body}\n\n{SIN_ESPECULAR}"
+    return _text_result(body, source_url=source_url, table=table)
 
 
-def empty_result(message: str):
+def empty_result(message: str, source_url: str | list[str]):
     """Build the standard response for a query with no matching rows."""
-    return text_result(message)
+    return _text_result(message, source_url=source_url)
 
 
 def activity_status_label(value: Any) -> str:
