@@ -12,6 +12,7 @@ search_activities and cannot chain into activity_summary).
 import pytest
 
 from mcp_iati import helpers as h
+from mcp_iati import terms
 from mcp_iati.helpers.format import _table_to_text
 from mcp_iati.activities import queries
 
@@ -68,6 +69,7 @@ def test_table_to_text_pipe_format():
 DATA_TOOLS = [
     ("search_activities", queries.search_activities, {"text": "programme"}),
     ("activity_summary", queries.activity_summary, {"iati_identifier": "IATI-001"}),
+    ("define_term", terms.define_term, {"term": "organisation"}),
 ]
 
 

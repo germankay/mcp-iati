@@ -1,6 +1,7 @@
 from mcp_server import DataToolOutput
 
 from mcp_iati import helpers as h
+from mcp_iati import terms
 from mcp_iati.activities import queries as activities
 from mcp_iati.glossary import full_glossary_text, glossary_text
 
@@ -31,7 +32,8 @@ def _register_iati_tools(mcp):  # noqa: C901
             "be ambiguity. Do not confuse the reporting organisation with the "
             "one funding or implementing an activity, nor a commitment with a "
             "disbursement or an expenditure. Use only the data returned by the "
-            "tools; if a question falls outside their scope, call "
+            "tools; when the user asks what a term means, call define_term, and "
+            "if a question falls outside the tools' scope, call "
             "no_tool_disponible explaining why.\n\n"
             "IATI glossary:\n" + full_glossary_text()
         ),
@@ -39,6 +41,7 @@ def _register_iati_tools(mcp):  # noqa: C901
             "Search IATI activities about transport",
             "Give me a summary of activity XI-IATI-IADB-BR-L1231",
             "What does it mean for an activity to be in implementation?",
+            "What is a policy marker?",
             "How much was committed and how much was disbursed in this activity?",
             "Is the reporting organisation also the one funding the project?",
         ],
@@ -112,6 +115,20 @@ def _register_iati_tools(mcp):  # noqa: C901
     )
     mcp.tool()(activity_summary)
 
+    @mcp.tool()
+    def define_term(term: str) -> DataToolOutput:
+        """Explain what an IATI term means, according to the standard's
+            glossary (activities, organisations, financial data, aid
+            classifications, sectors and geography, results, documentation).
 
-def main() -> None:
-    print("Hello from mcp-iati")
+        Useful for questions like "what does X mean?" or "what is the
+        difference between X and Y?" (call it once per term).
+
+        Args:
+            term: Word or phrase to look up, in English (e.g. "disbursement",
+                "policy marker"). Partial matches are accepted.
+
+        Returns:
+            A table with the matching glossary terms and their definitions.
+        """
+        return terms.define_term(term)

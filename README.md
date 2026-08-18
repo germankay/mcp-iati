@@ -14,6 +14,8 @@ Brazil, `iadb-Brazil.xml`, downloaded on demand from
 - `search_activities(text, limit=10)`: search activities by title.
 - `activity_summary(iati_identifier)`: title, status and committed/disbursed
   totals for one activity.
+- `define_term(term)`: explain what an IATI term means ("what does X
+  mean?"), from the central glossary.
 
 **Guiding principle:** these tools only use generic IATI standard fields
 (identifier, status, transaction type), never Brazil- or IADB-specific logic -
@@ -52,8 +54,9 @@ once. The `.gitignore` excludes any `*.xml` just in case.
 ## Development
 
 ```bash
-# Install dependencies (mcp-server from git, okfn-iati from PyPI)
-uv sync
+# Install dependencies (mcp-server from git, okfn-iati from PyPI;
+# the dev extra brings ruff and pytest)
+uv sync --extra dev
 
 # Lint
 uv run ruff check src
@@ -77,25 +80,30 @@ The tool descriptions and the plugin instructions share a central glossary
 defined in `src/mcp_iati/glossary.py`. Its goal is that the model interprets
 the standard's terms consistently and explains the distinctions that tend to
 be ambiguous, especially between reporting, funding and implementing
-organisations, and between commitment, disbursement and expenditure.
+organisations, and between commitment, disbursement and expenditure. The
+`define_term` tool exposes it directly, so questions like "what does
+'disbursement' mean?" are answered from the glossary (with the IATI standard
+as the cited source) instead of from the model's own knowledge.
 
-| Term | Definition |
+The glossary covers the whole IATI 2.03 activity standard as modelled by the
+[okfn/okfn_iati](https://github.com/okfn/okfn_iati) library (its enums mirror
+the IATI codelists and its converter flattens each element to a CSV), grouped
+in these areas:
+
+| Area | Terms |
 | --- | --- |
-| IATI activity | A development or cooperation intervention; it can be a project, a programme or another unit of work. |
-| IATI identifier | Globally unique code for an activity, also used to link its transactions. |
-| Reporting organisation | Organisation responsible for publishing and maintaining the data; not necessarily funding or implementing. |
-| Activity status | Lifecycle stage, such as pipeline, implementation or closed. |
-| Transaction | Financial movement associated with an activity, with type, date, value and currency. |
-| Commitment | Financial obligation undertaken to provide funds. |
-| Disbursement | Funds made available or transferred for an activity. |
-| Expenditure | Funds spent on the activity by the reporting or another organisation. |
-| Default currency | Currency used when a value does not specify another one. |
-| Participating organisation | Organisation linked with a role, such as funding, implementation or accountability. |
-| Sector | Thematic or economic area classified via a code. |
-| Recipient country or region | Location receiving the intended benefits of the activity. |
+| Identification and lifecycle | IATI activity, IATI identifier, activity status, activity date, description, hierarchy, related activity, activity scope, humanitarian flag |
+| Organisations | reporting organisation, participating organisation, organisation role, organisation type, provider organisation, receiver organisation, contact information |
+| Financial data | transaction, transaction type, transaction value, commitment, disbursement, expenditure, budget, planned disbursement, default currency, country budget item |
+| Aid classifications | aid type, finance type, flow type, tied status, collaboration type, disbursement channel, policy marker |
+| Sectors and geography | sector, recipient country or region, location |
+| Results and monitoring | result, indicator, indicator period |
+| Documentation and cross-cutting | document link, condition, vocabulary, codelist, narrative |
 
 When adding a new tool, reuse the definitions from the central module
-instead of duplicating them in its docstring.
+instead of duplicating them in its docstring (via `glossary_text(...)` for
+the relevant terms). When the underlying library starts exposing a new IATI
+element, add its term to the glossary in the matching group.
 
 ## Tests
 
