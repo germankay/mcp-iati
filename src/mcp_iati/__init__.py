@@ -111,7 +111,3 @@ def _register_iati_tools(mcp):  # noqa: C901
         )
     )
     mcp.tool()(activity_summary)
-
-
-def main() -> None:
-    print("Hello from mcp-iati")

@@ -52,8 +52,9 @@ once. The `.gitignore` excludes any `*.xml` just in case.
 ## Development
 
 ```bash
-# Install dependencies (mcp-server from git, okfn-iati from PyPI)
-uv sync
+# Install dependencies (mcp-server from git, okfn-iati from PyPI;
+# the dev extra brings ruff and pytest)
+uv sync --extra dev
 
 # Lint
 uv run ruff check src

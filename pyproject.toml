@@ -21,9 +21,6 @@ dev = [
     "pytest>=8.0",
 ]
 
-[project.scripts]
-mcp-iati = "mcp_iati:main"
-
 [project.entry-points."mcp_server"]
 mcp-iati = "mcp_iati:register_tools"
 
