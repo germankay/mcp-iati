@@ -2,13 +2,13 @@
 
 Tool modules focus on queries while reusable formatting and response logic
 lives under a single helpers namespace. ``text_result`` embeds the raw table
-as text for the AI and appends the ``SIN_ESPECULAR`` guardrail (see
+as text for the AI and appends the ``NO_SPECULATION`` guardrail (see
 ``format.py``).
 """
 
 from .format import (
     ALREADY_TABLE,
-    SIN_ESPECULAR,
+    NO_SPECULATION,
     activity_status_label,
     build_table,
     empty_result,
@@ -19,7 +19,7 @@ from .format import (
 
 __all__ = [
     "ALREADY_TABLE",
-    "SIN_ESPECULAR",
+    "NO_SPECULATION",
     "activity_status_label",
     "build_table",
     "empty_result",

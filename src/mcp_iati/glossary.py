@@ -1,99 +1,103 @@
 """Shared IATI terminology used in tool descriptions and plugin instructions."""
 
 IATI_GLOSSARY = {
-    "actividad IATI": (
-        "Intervención de cooperación o desarrollo publicada según el estándar IATI; "
-        "puede representar un proyecto, programa u otra unidad de trabajo."
+    "IATI activity": (
+        "A development or cooperation intervention published under the IATI standard; "
+        "it can represent a project, a programme or another unit of work."
     ),
-    "identificador IATI": (
-        "Código global y único que identifica una actividad IATI y permite relacionarla "
-        "con sus transacciones y demás información."
+    "IATI identifier": (
+        "Globally unique code identifying an IATI activity, also used to link it "
+        "to its transactions and other information."
     ),
-    "organización reportante": (
-        "Organización responsable de publicar y mantener los datos de una actividad; "
-        "no necesariamente es quien financia o implementa el proyecto."
+    "reporting organisation": (
+        "Organisation responsible for publishing and maintaining an activity's data; "
+        "not necessarily the one funding or implementing the project."
     ),
-    "estado de actividad": (
-        "Situación de una actividad dentro de su ciclo de vida, como planificación, "
-        "implementación, finalización, cierre, cancelación o suspensión."
+    "activity status": (
+        "Stage of an activity within its lifecycle, such as pipeline, implementation, "
+        "finalisation, closed, cancelled or suspended."
     ),
-    "fecha de actividad": (
-        "Fecha planificada o real de inicio o finalización de una actividad. "
-        "Su significado depende del tipo de fecha indicado."
+    "activity date": (
+        "Planned or actual start or end date of an activity. "
+        "Its meaning depends on the declared date type."
     ),
-    "transacción": (
-        "Operación financiera asociada a una actividad IATI, identificada mediante "
-        "su tipo, fecha, valor y moneda."
+    "transaction": (
+        "Financial operation associated with an IATI activity, identified by "
+        "its type, date, value and currency."
     ),
-    "tipo de transacción": (
-        "Código que indica la naturaleza de una operación financiera, como compromiso, "
-        "desembolso, gasto o fondos recibidos."
+    "transaction type": (
+        "Code indicating the nature of a financial operation, such as commitment, "
+        "disbursement, expenditure or incoming funds."
     ),
-    "valor de transacción": (
-        "Importe de una transacción individual, expresado en la moneda indicada en el "
-        "valor o, si no se especifica, en la moneda predeterminada de la actividad."
+    "transaction value": (
+        "Amount of an individual transaction, expressed in the currency stated on the "
+        "value or, if unspecified, in the activity's default currency."
     ),
-    "compromiso": (
-        "Obligación financiera asumida para proporcionar fondos a una actividad; "
-        "no representa necesariamente un pago ya realizado."
+    "commitment": (
+        "Financial obligation undertaken to provide funds to an activity; "
+        "it does not necessarily represent a payment already made."
     ),
-    "desembolso": (
-        "Transferencia de fondos desde una organización proveedora hacia una "
-        "organización receptora para financiar una actividad."
+    "disbursement": (
+        "Transfer of funds from a provider organisation to a receiver "
+        "organisation to finance an activity."
     ),
-    "gasto": (
-        "Uso de fondos para adquirir bienes o servicios relacionados con una actividad; "
-        "no es sinónimo de desembolso."
+    "expenditure": (
+        "Use of funds to purchase goods or services related to an activity; "
+        "not a synonym of disbursement."
     ),
-    "presupuesto": (
-        "Importe previsto para una actividad durante un período determinado; "
-        "no representa necesariamente fondos efectivamente desembolsados o gastados."
+    "budget": (
+        "Amount planned for an activity over a given period; it does not "
+        "necessarily represent funds actually disbursed or spent."
     ),
-    "desembolso planificado": (
-        "Importe que se espera desembolsar durante un período futuro; se diferencia "
-        "de una transacción de desembolso que ya fue realizada."
+    "planned disbursement": (
+        "Amount expected to be disbursed during a future period; different "
+        "from a disbursement transaction that already took place."
     ),
-    "moneda predeterminada": (
-        "Moneda declarada para una actividad y utilizada cuando un valor financiero "
-        "no especifica explícitamente otra moneda."
+    "default currency": (
+        "Currency declared for an activity and used whenever a financial value "
+        "does not explicitly specify another currency."
     ),
-    "organización participante": (
-        "Organización vinculada a una actividad con un rol determinado, como financiación, "
-        "rendición de cuentas, extensión o implementación."
+    "participating organisation": (
+        "Organisation linked to an activity with a given role, such as funding, "
+        "accountability, extension or implementation."
     ),
-    "rol de organización": (
-        "Código que describe la función de una organización participante dentro de "
-        "una actividad, como financiar, rendir cuentas, extender o implementar."
+    "organisation role": (
+        "Code describing the function of a participating organisation within "
+        "an activity, such as funding, accountable, extending or implementing."
     ),
-    "organización proveedora": (
-        "Organización que proporciona los fondos asociados a una transacción "
-        "o a un desembolso planificado."
+    "provider organisation": (
+        "Organisation providing the funds associated with a transaction "
+        "or a planned disbursement."
     ),
-    "organización receptora": (
-        "Organización que recibe los fondos asociados a una transacción "
-        "o a un desembolso planificado."
+    "receiver organisation": (
+        "Organisation receiving the funds associated with a transaction "
+        "or a planned disbursement."
     ),
     "sector": (
-        "Área temática o económica a la que contribuye una actividad, indicada mediante "
-        "un código, un vocabulario y, cuando corresponde, un porcentaje."
+        "Thematic or economic area an activity contributes to, indicated by "
+        "a code, a vocabulary and, where applicable, a percentage."
     ),
-    "país o región receptora": (
-        "País o región que recibe los beneficios previstos de una actividad. Puede incluir "
-        "un porcentaje cuando la actividad se distribuye entre varios territorios."
+    "recipient country or region": (
+        "Country or region that receives the intended benefits of an activity. May "
+        "include a percentage when the activity is split across several territories."
     ),
-    "vocabulario": (
-        "Sistema de clasificación utilizado para interpretar un código IATI, "
-        "como el vocabulario DAC utilizado para clasificar sectores."
+    "vocabulary": (
+        "Classification system used to interpret an IATI code, "
+        "such as the DAC vocabulary used to classify sectors."
     ),
-    "lista de códigos": (
-        "Catálogo que relaciona los códigos utilizados en IATI con sus significados "
-        "permitidos. También se conoce como codelist."
+    "codelist": (
+        "Catalogue mapping the codes used in IATI to their allowed meanings."
     ),
-    "narrativa": (
-        "Texto legible asociado a un elemento IATI, que puede publicarse en uno "
-        "o varios idiomas."
+    "narrative": (
+        "Human-readable text attached to an IATI element, which may be "
+        "published in one or more languages."
     ),
 }
+
+
+def _capitalize(term: str) -> str:
+    """Capitalize only the first letter, preserving acronyms like IATI."""
+    return term[0].upper() + term[1:]
 
 
 def glossary_text(*terms: str) -> str:
@@ -101,11 +105,11 @@ def glossary_text(*terms: str) -> str:
     unknown_terms = [term for term in terms if term not in IATI_GLOSSARY]
     if unknown_terms:
         raise KeyError(
-            f"Términos IATI desconocidos: {', '.join(unknown_terms)}"
+            f"Unknown IATI terms: {', '.join(unknown_terms)}"
         )
 
     return "\n".join(
-        f"- {term.title()}: {IATI_GLOSSARY[term]}"
+        f"- {_capitalize(term)}: {IATI_GLOSSARY[term]}"
         for term in terms
     )
 

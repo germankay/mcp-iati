@@ -1,7 +1,7 @@
 [project]
 name = "mcp-iati"
 version = "0.1.0"
-description = "Herramientas MCP para procesar archivos del estandar IATI (prueba local, work in progress)"
+description = "MCP tools for processing IATI-standard files (local proof of concept, work in progress)"
 readme = "README.md"
 authors = [
     { name = "OKFN", email = "info@okfn.org" }

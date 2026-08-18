@@ -13,8 +13,8 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v5
 
-    # Solo 3.14: pyproject.toml declara requires-python >= 3.14, asi que
-    # versiones anteriores no pueden instalar el paquete.
+    # 3.14 only: pyproject.toml declares requires-python >= 3.14, so older
+    # versions cannot install the package.
     - name: Set up Python 3.14
       run: uv python install 3.14
 
@@ -29,6 +29,6 @@ jobs:
       run: uv run ruff check src
 
     - name: Run tests
-      # Los tests corren offline (cache de datos sintetico via conftest) y
-      # garantizan que las tools embeben los datos crudos en la respuesta a la IA.
+      # Tests run offline (synthetic data cache via conftest) and guarantee
+      # that the tools embed the raw data in the AI-facing response.
       run: uv run pytest

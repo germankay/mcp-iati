@@ -1,14 +1,14 @@
 """
-Fixtures de test para las tools IATI.
+Test fixtures for the IATI tools.
 
-`seed_cache` precarga el cache de `activities/data.py` con DataFrames
-sintéticos (sin red ni conversión XML→CSV) y fija `MCP_IATI_XML_PATH` a una
-ruta local para que `xml_source()` no dispare descargas. `activities_df` /
-`transactions_df` devuelven el cache si la key existe, así que basta con
-poblar `data._cache`.
+`seed_cache` preloads the `activities/data.py` cache with synthetic
+DataFrames (no network, no XML-to-CSV conversion) and points
+`MCP_IATI_XML_PATH` at a local path so `xml_source()` never triggers a
+download. `activities_df` / `transactions_df` return the cache when the key
+exists, so populating `data._cache` is enough.
 
-`fake_mcp` es un doble del registry de mcp-server que captura `plugin_info`
-y las tools registradas, por nombre y en orden de registro.
+`fake_mcp` is a test double of the mcp-server registry that captures
+`plugin_info` and the registered tools, by name and in registration order.
 """
 
 from types import SimpleNamespace
@@ -19,8 +19,8 @@ import pytest
 from mcp_iati.activities import data as data_mod
 
 
-# Ruta local ficticia: xml_source() la devuelve tal cual (sin descargar) y
-# las queries la reportan como fuente.
+# Fictitious local path: xml_source() returns it as-is (no download) and the
+# queries report it as the source.
 FAKE_XML = "/data/fake-iati-sample.xml"
 
 
@@ -29,15 +29,15 @@ def _activities_df():
         [
             {
                 "activity_identifier": "IATI-001",
-                "title": "Programa de transporte sostenible",
+                "title": "Sustainable transport programme",
                 "activity_status": "2",
-                "reporting_org_name": "Banco de Desarrollo",
+                "reporting_org_name": "Development Bank",
                 "reporting_org_ref": "ORG-001",
                 "default_currency": "USD",
             },
             {
                 "activity_identifier": "IATI-002",
-                "title": "Programa de salud",
+                "title": "Health programme",
                 "activity_status": "3",
                 "reporting_org_name": "",
                 "reporting_org_ref": "ORG-002",
@@ -59,7 +59,7 @@ def _transactions_df():
 
 @pytest.fixture
 def seed_cache(monkeypatch):
-    """Precarga el cache de datos y lo limpia al terminar."""
+    """Preload the data cache and clear it afterwards."""
     monkeypatch.setenv("MCP_IATI_XML_PATH", FAKE_XML)
     data_mod._cache.clear()
     data_mod._cache["activities"] = _activities_df()

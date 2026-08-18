@@ -1,12 +1,12 @@
 """
-Garantiza que la respuesta que recibe la IA (el texto de `content`) incluye los
-DATOS CRUDOS, no sólo un resumen.
+Guarantees that the response the AI receives (the text in `content`) includes
+the RAW DATA, not just a summary.
 
-Contexto: el gateway manda a la IA únicamente `content[0].text`; la tabla de
-`structuredContent` se renderiza sólo para el usuario. Por eso `text_result`
-embebe la tabla como texto en `content`. Si esto se rompe, la IA analiza a
-ciegas (por ejemplo, no ve los identificadores que devuelve buscar_actividades
-y no puede encadenar resumen_actividad).
+Context: the gateway sends the AI only `content[0].text`; the table in
+`structuredContent` is rendered for the user alone. That is why `text_result`
+embeds the table as text in `content`. If this breaks, the AI analyses
+blindly (for example, it never sees the identifiers returned by
+search_activities and cannot chain into activity_summary).
 """
 
 import pytest
@@ -20,54 +20,54 @@ def _text(res):
     return res.content[0].text
 
 
-# ─── Unit: el builder text_result embebe la tabla cruda ───────────────────
+# --- Unit: the text_result builder embeds the raw table -------------------
 
 def test_text_result_embeds_full_table_verbatim():
     table = [
-        ["Identificador IATI", "Título", "Estado"],
-        ["IATI-001", "Programa A", "Implementation"],
-        ["IATI-002", "Programa B", "Finalisation"],
+        ["IATI identifier", "Title", "Status"],
+        ["IATI-001", "Programme A", "Implementation"],
+        ["IATI-002", "Programme B", "Finalisation"],
     ]
-    res = h.text_result("resumen", source_url="http://src", table=table)
+    res = h.text_result("summary", source_url="http://src", table=table)
 
     txt = _text(res)
-    # El bloque de datos para la IA está presente...
-    assert "=== Datos completos" in txt
-    # ...y contiene la tabla COMPLETA verbatim (no sólo la última fila).
+    # The AI-facing data block is present...
+    assert "=== Full data" in txt
+    # ...and contains the COMPLETE table verbatim (not just the last row).
     assert _table_to_text(table) in txt
     for row in table:
         for cell in row:
             assert cell in txt
-    # structuredContent (lo que ve el usuario) queda intacto.
+    # structuredContent (what the user sees) stays intact.
     assert res.structuredContent["table"] == table
     assert res.structuredContent["sources"] == ["http://src"]
 
 
-def test_text_result_sin_tabla_no_agrega_bloque():
-    res = h.text_result("solo texto", source_url="http://src")
+def test_text_result_without_table_adds_no_block():
+    res = h.text_result("text only", source_url="http://src")
     txt = _text(res)
-    assert "=== Datos completos" not in txt
+    assert "=== Full data" not in txt
     assert "table" not in res.structuredContent
 
 
 def test_text_result_appends_guardrail():
-    res = h.text_result("texto", source_url="http://src")
-    assert h.SIN_ESPECULAR in _text(res)
+    res = h.text_result("text", source_url="http://src")
+    assert h.NO_SPECULATION in _text(res)
 
 
-def test_table_to_text_formato_pipe():
+def test_table_to_text_pipe_format():
     table = [["a", "b"], ["1", "2"]]
     assert _table_to_text(table) == "a | b\n1 | 2"
     assert _table_to_text([]) == ""
 
 
-# ─── Contrato: TODA tool de datos manda la tabla cruda a la IA ────────────
+# --- Contract: EVERY data tool sends the raw table to the AI --------------
 
-# (nombre, callable, kwargs) para cada tool de datos del repo. Al agregar una
-# tool nueva que devuelva tabla, sumarla acá.
+# (name, callable, kwargs) for every data tool in the repo. When adding a
+# new table-returning tool, add it here.
 DATA_TOOLS = [
-    ("buscar_actividades", queries.buscar_actividades, {"texto": "Programa"}),
-    ("resumen_actividad", queries.resumen_actividad, {"iati_identifier": "IATI-001"}),
+    ("search_activities", queries.search_activities, {"text": "programme"}),
+    ("activity_summary", queries.activity_summary, {"iati_identifier": "IATI-001"}),
 ]
 
 
@@ -77,12 +77,12 @@ def test_tool_embeds_full_table_in_ai_text(seed_cache, name, fn, kwargs):
     txt = _text(res)
     sc = res.structuredContent
 
-    # 1. La tool produjo una tabla (datos para el usuario).
-    assert "table" in sc, f"{name}: no devolvió tabla"
-    assert len(sc["table"]) >= 2, f"{name}: tabla sin filas de datos"
+    # 1. The tool produced a table (data for the user).
+    assert "table" in sc, f"{name}: returned no table"
+    assert len(sc["table"]) >= 2, f"{name}: table has no data rows"
 
-    # 2. Esa MISMA tabla completa está embebida en el texto que recibe la IA.
-    assert "=== Datos completos" in txt, f"{name}: falta el bloque de datos"
+    # 2. That SAME complete table is embedded in the text the AI receives.
+    assert "=== Full data" in txt, f"{name}: data block missing"
     assert _table_to_text(sc["table"]) in txt, (
-        f"{name}: la tabla del usuario no está verbatim en el texto de la IA"
+        f"{name}: the user-facing table is not verbatim in the AI text"
     )

@@ -8,24 +8,24 @@ from okfn_iati.enums import ActivityStatus, TransactionType
 from mcp_server.results import text_result as _text_result
 
 
-# Nota para la IA: la tabla renderizada ya se mostró en pantalla vía
-# structuredContent; la copia en texto es para que analice los números reales.
+# Note for the AI: the rendered table was already shown on screen via
+# structuredContent; the text copy is there so it analyses the real numbers.
 ALREADY_TABLE = (
-    "Al usuario ya se le mostró una tabla renderizada en pantalla con estos "
-    "datos. Más abajo te adjuntamos los mismos datos en texto para que analices "
-    "los números; no copies la tabla de vuelta en tu respuesta, interpretala."
+    "The user has already been shown a rendered table with this data on "
+    "screen. The same data is attached below as text so you can analyse the "
+    "numbers; do not copy the table back into your answer, interpret it."
 )
 
-# Guardrail para la IA: se appendea automáticamente a toda respuesta desde
-# `text_result`. Evita que el modelo invente datos que no están en el XML y
-# que mezcle los roles/conceptos IATI que suelen confundirse.
-SIN_ESPECULAR = (
-    "Respondé únicamente con los datos presentes en esta respuesta y en los "
-    "datos IATI cargados. NO inventes montos, monedas, fechas ni nombres de "
-    "organizaciones que no aparezcan explícitamente en los datos. No confundas "
-    "a la organización reportante con quien financia o ejecuta la actividad, "
-    "ni un compromiso con un desembolso o gasto. Limitate a describir qué "
-    "muestran los datos."
+# Guardrail for the AI, appended automatically to every response by
+# `text_result`. Keeps the model from inventing data that is not in the XML
+# and from mixing up the IATI roles/concepts that are commonly confused.
+NO_SPECULATION = (
+    "Answer only with the data present in this response and in the loaded "
+    "IATI data. Do NOT invent amounts, currencies, dates or organisation "
+    "names that do not appear explicitly in the data. Do not confuse the "
+    "reporting organisation with the one funding or implementing the "
+    "activity, nor a commitment with a disbursement or an expenditure. Limit "
+    "yourself to describing what the data shows."
 )
 
 
@@ -40,7 +40,7 @@ _TRANSACTION_TYPE_LABELS = {
 
 
 def _table_to_text(table):
-    """Renderiza la tabla (lista de filas) como bloque delimitado por ' | '."""
+    """Render the table (list of rows) as a ' | '-delimited text block."""
     if not table:
         return ""
     return "\n".join(" | ".join(str(cell) for cell in row) for row in table)
@@ -53,19 +53,20 @@ def text_result(
 ):
     """Build the standard IATI response.
 
-    Embeds the full table as text for the AI (see module docstring) and
-    appends the no-speculation guardrail. `source_url` is explicit so this
-    module stays independent from the data layer; queries pass
-    `data.xml_source()`.
+    The chat gateway forwards only the text content to the LLM (the
+    structuredContent table is rendered for the user alone), so the full
+    table is embedded as text for the AI, followed by the no-speculation
+    guardrail. `source_url` is explicit so this module stays independent
+    from the data layer; queries pass `data.xml_source()`.
     """
     body = text
     if table:
         body += (
             f"\n\n{ALREADY_TABLE}\n\n"
-            "=== Datos completos (para tu análisis) ===\n"
+            "=== Full data (for your analysis) ===\n"
             + _table_to_text(table)
         )
-    body = f"{body}\n\n{SIN_ESPECULAR}"
+    body = f"{body}\n\n{NO_SPECULATION}"
     return _text_result(body, source_url=source_url, table=table)
 
 
