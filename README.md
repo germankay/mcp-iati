@@ -19,8 +19,8 @@ Brazil, `iadb-Brazil.xml`, downloaded on demand from
 
 **Guiding principle:** these tools only use generic IATI standard fields
 (identifier, status, transaction type), never Brazil- or IADB-specific logic -
-they must work just as well with any other IATI XML (see the
-`MCP_IATI_SAMPLE` and `MCP_IATI_XML_PATH` variables below).
+they must work just as well with any other IATI XML (see the configuration
+variables below).
 
 ## Where the data comes from
 
@@ -40,16 +40,47 @@ once. The `.gitignore` excludes any `*.xml` just in case.
    `pandas`, not the XML - this avoids reparsing a multi-MB file on every
    call.
 3. It uses `iadb-Brazil.xml` by default. To use another sample from the
-   `okfn_iati` repo (downloaded automatically) or a local file, without
-   touching code:
+   `okfn_iati` repo, a remote URL or a local file, without touching code:
 
    ```bash
    # another sample from https://github.com/okfn/okfn_iati/tree/main/data-samples/xml
    export MCP_IATI_SAMPLE=iadb-Argentina.xml
 
+   # or any remote IATI XML
+   export MCP_IATI_XML_URL=https://example.org/activities.xml
+
    # or any local file (downloads nothing)
    export MCP_IATI_XML_PATH=/path/to/another-iati-file.xml
    ```
+
+## Configuration
+
+Configuration is read once when the process starts. Restart the server after
+changing the source, data directory or cache duration.
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `MCP_IATI_XML_PATH` | Path to a local XML. It has priority and performs no download. | Not set. |
+| `MCP_IATI_XML_URL` | HTTP(S) URL of a remote XML, used when no local path is configured. | Not set. |
+| `MCP_IATI_SAMPLE` | Name of an `okfn-iati` sample, used when neither a path nor URL is configured. | `iadb-Brazil.xml`. |
+| `MCP_IATI_DATA_DIR` | Directory for downloaded XML files and generated CSV files. | User data directory provided by `platformdirs`. |
+| `MCP_IATI_CACHE_TTL_SECONDS` | Configurable cache duration in seconds; must be greater than zero. | `604800` (7 days). |
+
+The source precedence is:
+
+1. `MCP_IATI_XML_PATH`.
+2. `MCP_IATI_XML_URL`.
+3. `MCP_IATI_SAMPLE`.
+4. The default `iadb-Brazil.xml` sample.
+
+Example:
+
+```bash
+export MCP_IATI_XML_URL=https://example.org/iadb-Argentina.xml
+export MCP_IATI_DATA_DIR=/var/cache/mcp-iati
+export MCP_IATI_CACHE_TTL_SECONDS=604800
+uv run mcp-server
+```
 
 ## Development
 
