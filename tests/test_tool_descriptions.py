@@ -13,6 +13,7 @@ def test_register_tools_adds_expected_tools(fake_mcp):
         "no_tool_disponible",
         "search_activities",
         "activity_summary",
+        "define_term",
     ]
 
 
