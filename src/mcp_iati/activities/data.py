@@ -13,11 +13,13 @@ directory. Pick a different sample with MCP_IATI_SAMPLE (e.g.
 MCP_IATI_XML_PATH to use a local file with no download at all.
 """
 import hashlib
+import os
 import shutil
 import tempfile
 import time
 import urllib.error
 import urllib.request
+import warnings
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -44,22 +46,49 @@ def _download_xml(url: str, filename: str) -> Path:
     target = get_settings().ensure_data_dir() / "xml" / filename
     if _cache_is_fresh(target):
         return target
+    target.parent.mkdir(parents=True, exist_ok=True)
     try:
         with urllib.request.urlopen(url, timeout=60) as resp:
             content = resp.read()
     except (urllib.error.URLError, OSError) as exc:
+        if target.exists():
+            warnings.warn(
+                f"Could not refresh IATI XML from {url}; using the stale "
+                f"cached copy at {target}: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return target
         raise FileNotFoundError(
             f"Could not download IATI XML from {url} ({exc}). Check "
             "MCP_IATI_XML_URL or MCP_IATI_SAMPLE, or set MCP_IATI_XML_PATH "
             "to a local file."
         ) from exc
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(content)
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=target.parent,
+            prefix=f".{target.name}-",
+            delete=False,
+        ) as temporary_file:
+            temporary_file.write(content)
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+            temporary_path = Path(temporary_file.name)
+        temporary_path.replace(target)
+    finally:
+        if temporary_path and temporary_path.exists():
+            temporary_path.unlink()
     return target
 
 
 def _download_sample(name: str) -> Path:
     """Download a named sample from the okfn_iati repository."""
+    if not name or Path(name).name != name or name in {".", ".."}:
+        raise ValueError(
+            "MCP_IATI_SAMPLE must be a filename without directory components."
+        )
     url = f"{_SAMPLES_BASE_URL}/{name}"
     return _download_xml(url, name)
 
@@ -87,8 +116,13 @@ def xml_path() -> Path:
 
 
 def xml_source() -> str:
-    """Human-readable reference to the currently loaded XML, used as the tool's `sources`."""
-    return str(xml_path())
+    """Return the original configured source used by tool responses."""
+    settings = get_settings()
+    if settings.xml_path:
+        return str(settings.xml_path)
+    if settings.xml_url:
+        return settings.xml_url
+    return f"{_SAMPLES_BASE_URL}/{settings.sample}"
 
 
 def _source_cache_key() -> str:
@@ -103,22 +137,35 @@ def _source_cache_key() -> str:
     return hashlib.sha256(source.encode()).hexdigest()[:16]
 
 
-def _csv_cache_is_fresh(folder: Path) -> bool:
+def _csv_cache_is_fresh(
+    folder: Path,
+    source_path: Path | None = None,
+) -> bool:
     """Return whether a complete CSV cache exists and is still valid."""
+    marker = folder / ".complete"
     required_files = (
         folder / "activities.csv",
         folder / "transactions.csv",
-        folder / ".complete",
+        marker,
     )
-    return all(path.exists() for path in required_files) and _cache_is_fresh(
-        folder / ".complete"
-    )
+    if not all(path.exists() for path in required_files):
+        return False
+    if not _cache_is_fresh(marker):
+        return False
+    if source_path and not source_path.exists():
+        return False
+
+    return not source_path or marker.stat().st_mtime >= source_path.stat().st_mtime
 
 
 def _clear_expired_memory_cache() -> None:
     """Drop in-process DataFrames when their disk cache has expired."""
     cached_folder = _cache.get("csv_folder")
-    if cached_folder and not _csv_cache_is_fresh(Path(cached_folder)):
+    local_source = get_settings().xml_path
+    if cached_folder and not _csv_cache_is_fresh(
+        Path(cached_folder),
+        local_source,
+    ):
         for key in ("csv_folder", "activities", "transactions"):
             _cache.pop(key, None)
 
@@ -137,31 +184,37 @@ def _csv_folder() -> Path:
         csv_parent.mkdir(parents=True, exist_ok=True)
         cache_key = _source_cache_key()
         cache_dir = csv_parent / cache_key
-        if _csv_cache_is_fresh(cache_dir):
+        if _csv_cache_is_fresh(cache_dir, path):
             _cache["csv_folder"] = cache_dir
             return cache_dir
 
         tmp_dir = Path(
             tempfile.mkdtemp(prefix=f"{cache_key}-", dir=csv_parent)
         )
-        converter = IatiMultiCsvConverter()
-        if not converter.xml_to_csv_folder(path, tmp_dir):
-            shutil.rmtree(tmp_dir)
-            raise RuntimeError(f"Failed to convert {path} to CSV: {converter.latest_errors}")
-        required_files = (
-            tmp_dir / "activities.csv",
-            tmp_dir / "transactions.csv",
-        )
-        if not all(file.exists() for file in required_files):
-            shutil.rmtree(tmp_dir)
-            raise RuntimeError(
-                f"IATI conversion did not produce the required CSVs for {path}."
+        try:
+            converter = IatiMultiCsvConverter()
+            if not converter.xml_to_csv_folder(path, tmp_dir):
+                raise RuntimeError(
+                    f"Failed to convert {path} to CSV: "
+                    f"{converter.latest_errors}"
+                )
+            required_files = (
+                tmp_dir / "activities.csv",
+                tmp_dir / "transactions.csv",
             )
+            if not all(file.exists() for file in required_files):
+                raise RuntimeError(
+                    "IATI conversion did not produce the required CSVs "
+                    f"for {path}."
+                )
 
-        (tmp_dir / ".complete").touch()
-        if cache_dir.exists():
-            shutil.rmtree(cache_dir)
-        tmp_dir.rename(cache_dir)
+            (tmp_dir / ".complete").touch()
+            if cache_dir.exists():
+                shutil.rmtree(cache_dir)
+            tmp_dir.rename(cache_dir)
+        finally:
+            if tmp_dir.exists():
+                shutil.rmtree(tmp_dir)
         _cache["csv_folder"] = cache_dir
     return _cache["csv_folder"]
 

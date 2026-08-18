@@ -27,13 +27,15 @@ variables below).
 The sample XMLs are real-life data but are **not versioned in this repo**:
 they are downloaded on demand from `data-samples/xml/` in the
 [okfn/okfn_iati](https://github.com/okfn/okfn_iati) repo into the user data
-directory (`~/.local/share/mcp-iati/xml/` on Linux, via `platformdirs`), only
-once. The `.gitignore` excludes any `*.xml` just in case.
+directory (`~/.local/share/mcp-iati/xml/` on Linux, via `platformdirs`) and
+refreshed when its configured TTL expires. The `.gitignore` excludes any
+`*.xml` just in case.
 
 ## How the XML is processed
 
-1. `mcp_iati/activities/data.py` converts the configured XML to flat CSVs
-   once per process, using `okfn_iati.IatiMultiCsvConverter().xml_to_csv_folder(...)`
+1. `mcp_iati/activities/data.py` converts the configured XML to flat CSVs and
+   reuses the source-specific cache until its TTL expires, using
+   `okfn_iati.IatiMultiCsvConverter().xml_to_csv_folder(...)`
    (the same library `ckanext-iati-generator` uses in production, but in the
    XML -> CSV direction instead of CSV -> XML).
 2. The tools (`mcp_iati/activities/queries.py`) query those CSVs with
@@ -70,6 +72,8 @@ Downloaded XML files and converted CSV folders are reused while they remain
 inside this TTL. Once it expires, the XML is downloaded again and the CSVs
 are regenerated. CSV caches use a key derived from the configured origin, so
 Argentina, Brazil and custom URLs never share the same converted files.
+If a remote refresh fails and a previous XML exists, that stale copy is used
+with a runtime warning instead of making the tools unavailable.
 
 The source precedence is:
 
