@@ -252,7 +252,7 @@ def prepare_data() -> Path:
     generated_csvs = sorted(path.name for path in folder.glob("*.csv"))
 
     print(
-        f"✅ IATI data prepared from {source}: "
+        f"IATI data prepared from {source}: "
         f"{len(generated_csvs)} CSV files in {folder}"
     )
 
