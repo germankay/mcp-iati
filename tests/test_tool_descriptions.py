@@ -12,7 +12,13 @@ def test_register_tools_adds_expected_tools(fake_mcp):
     assert list(fake_mcp.tools) == [
         "no_tool_disponible",
         "search_activities",
+        "list_activity_statuses",
+        "list_reporting_organisations",
+        "list_recipient_countries",
+        "filter_activities_by_country",
+        "list_sectors",
         "activity_summary",
+        "activity_transactions",
         "define_term",
     ]
 
@@ -34,7 +40,11 @@ def test_plugin_sample_questions_cover_main_use_cases(fake_mcp):
     questions = fake_mcp.plugin_info["sample_questions"]
     assert "Search IATI activities about transport" in questions
     assert "Give me a summary of activity XI-IATI-IADB-BR-L1231" in questions
-
+    assert "What activity statuses are present in this IATI file?" in questions
+    assert "Which organisations report activities in this IATI file?" in questions
+    assert "Which recipient countries are present in this IATI file?" in questions
+    assert "Which IATI activities have Brazil as their recipient country?" in questions
+    assert "Show the transactions for activity XI-IATI-IADB-BR-L1231" in questions
 
 def test_no_tool_disponible_returns_clear_fallback_message(fake_mcp):
     register_tools(fake_mcp)

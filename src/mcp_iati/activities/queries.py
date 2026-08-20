@@ -8,7 +8,12 @@ Each query passes `xml_source()` as the source; the raw table data is
 embedded into the AI-facing text by `h.text_result` (see helpers/format.py).
 """
 from mcp_iati import helpers as h
-from mcp_iati.activities.data import activities_df, transactions_df, xml_source
+from mcp_iati.activities.data import (
+    activities_df,
+    sectors_df,
+    transactions_df,
+    xml_source,
+)
 
 
 def search_activities(text: str, limit: int = 10):
@@ -34,6 +39,54 @@ def search_activities(text: str, limit: int = 10):
     )
     summary = f"Found {len(matches)} IATI activity(ies) matching '{text}'."
     return h.text_result(summary, source_url=xml_source(), table=table)
+
+
+def list_activity_statuses():
+    """List the activity statuses present in the configured IATI data."""
+    activities = activities_df()
+
+    counts = (
+        activities["activity_status"]
+        .dropna()
+        .astype(str)
+        .value_counts()
+        .sort_index()
+    )
+
+    if counts.empty:
+        return h.empty_result(
+            "No activity statuses were found in the loaded IATI data.",
+            source_url=xml_source(),
+        )
+
+    rows = [
+        {
+            "code": code,
+            "status": h.activity_status_label(code),
+            "activities": int(count),
+        }
+        for code, count in counts.items()
+    ]
+
+    table = h.build_table(
+        rows,
+        [
+            ("code", "Status code"),
+            ("status", "Activity status"),
+            ("activities", "Activities"),
+        ],
+    )
+
+    summary = (
+        f"Found {len(rows)} activity status value(s) "
+        f"across {sum(counts)} activities."
+    )
+
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+    )
 
 
 def activity_summary(iati_identifier: str):
@@ -67,3 +120,433 @@ def activity_summary(iati_identifier: str):
         table.append([h.transaction_type_label(code), h.format_amount(total), currency])
 
     return h.text_result("\n".join(lines), source_url=xml_source(), table=table)
+
+
+def list_reporting_organisations():
+    """List reporting organisations present in the configured IATI data."""
+    activities = activities_df()
+
+    organisations = activities[
+        [
+            "activity_identifier",
+            "reporting_org_ref",
+            "reporting_org_name",
+        ]
+    ].copy()
+
+    # pandas represents empty CSV cells as NaN. Normalize them before
+    # grouping so they never appear as "nan" in tool responses.
+    organisations["reporting_org_ref"] = (
+        organisations["reporting_org_ref"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    organisations["reporting_org_name"] = (
+        organisations["reporting_org_name"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+
+    organisations["display_name"] = organisations[
+        "reporting_org_name"
+    ].where(
+        organisations["reporting_org_name"] != "",
+        organisations["reporting_org_ref"],
+    )
+
+    organisations = organisations[
+        organisations["display_name"] != ""
+    ]
+
+    if organisations.empty:
+        return h.empty_result(
+            "No reporting organisations were found in the loaded IATI data.",
+            source_url=xml_source(),
+        )
+
+    counts = (
+        organisations.groupby(
+            ["reporting_org_ref", "display_name"],
+            dropna=False,
+        )["activity_identifier"]
+        .nunique()
+        .reset_index(name="activities")
+        .sort_values(
+            ["activities", "display_name"],
+            ascending=[False, True],
+        )
+    )
+
+    rows = counts.to_dict("records")
+
+    table = h.build_table(
+        rows,
+        [
+            ("reporting_org_ref", "Organisation reference"),
+            ("display_name", "Reporting organisation"),
+            ("activities", "Activities"),
+        ],
+    )
+
+    summary = (
+        f"Found {len(rows)} reporting organisation(s) "
+        f"across {len(organisations)} activities."
+    )
+
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+    )
+
+
+def list_recipient_countries():
+    """List recipient countries present in the configured IATI data."""
+    activities = activities_df()
+
+    countries = activities[
+        [
+            "activity_identifier",
+            "recipient_country_code",
+            "recipient_country_name",
+        ]
+    ].copy()
+
+    countries["recipient_country_code"] = (
+        countries["recipient_country_code"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    countries["recipient_country_name"] = (
+        countries["recipient_country_name"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+
+    countries["display_name"] = countries[
+        "recipient_country_name"
+    ].where(
+        countries["recipient_country_name"] != "",
+        countries["recipient_country_code"],
+    )
+
+    countries = countries[
+        (countries["recipient_country_code"] != "")
+        | (countries["display_name"] != "")
+    ]
+
+    if countries.empty:
+        return h.empty_result(
+            "No recipient countries were found in the loaded IATI data.",
+            source_url=xml_source(),
+        )
+
+    counts = (
+        countries.groupby(
+            ["recipient_country_code", "display_name"],
+            dropna=False,
+        )["activity_identifier"]
+        .nunique()
+        .reset_index(name="activities")
+        .sort_values(
+            ["activities", "display_name"],
+            ascending=[False, True],
+        )
+    )
+
+    table = h.build_table(
+        counts.to_dict("records"),
+        [
+            ("recipient_country_code", "Country code"),
+            ("display_name", "Recipient country"),
+            ("activities", "Activities"),
+        ],
+    )
+
+    summary = (
+        f"Found {len(counts)} recipient country value(s) "
+        f"across {countries['activity_identifier'].nunique()} activities."
+    )
+
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+    )
+
+def filter_activities_by_country(
+    country: str,
+    limit: int = 10,
+):
+    """Filter IATI activities by recipient country code or name."""
+    country = country.strip()
+
+    if not country:
+        return h.empty_result(
+            "A recipient country code or name is required.",
+            source_url=xml_source(),
+        )
+
+    if limit < 1:
+        return h.empty_result(
+            "The result limit must be greater than zero.",
+            source_url=xml_source(),
+        )
+
+    activities = activities_df().copy()
+
+    country_codes = (
+        activities["recipient_country_code"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    country_names = (
+        activities["recipient_country_name"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.casefold()
+    )
+
+    matches = activities[
+        (country_codes == country.upper())
+        | (country_names == country.casefold())
+    ].drop_duplicates(subset=["activity_identifier"])
+
+    total = len(matches)
+
+    if matches.empty:
+        return h.empty_result(
+            f"No IATI activities were found for recipient country "
+            f"'{country}'.",
+            source_url=xml_source(),
+        )
+
+    shown = matches.head(limit).copy()
+
+    rows = shown[
+        [
+            "activity_identifier",
+            "title",
+            "activity_status",
+            "recipient_country_code",
+            "recipient_country_name",
+        ]
+    ].fillna("")
+
+    table = h.build_table(
+        rows.to_dict("records"),
+        [
+            ("activity_identifier", "IATI identifier"),
+            ("title", "Title"),
+            ("activity_status", "Status"),
+            ("recipient_country_code", "Country code"),
+            ("recipient_country_name", "Recipient country"),
+        ],
+        formatters={
+            "activity_status": h.activity_status_label,
+        },
+    )
+
+    summary = (
+        f"Found {total} IATI activity(ies) for recipient country "
+        f"'{country}'. Showing {len(shown)} result(s) with limit {limit}."
+    )
+
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+    )
+
+
+def list_sectors(limit: int = 100):
+    """List sectors present in the configured IATI data."""
+    if limit < 1:
+        return h.empty_result(
+            "The result limit must be greater than zero.",
+            source_url=xml_source(),
+        )
+
+    sectors = sectors_df().copy()
+
+    for column in (
+        "sector_code",
+        "sector_name",
+        "vocabulary",
+    ):
+        sectors[column] = (
+            sectors[column]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+
+    sectors["display_name"] = sectors["sector_name"].where(
+        sectors["sector_name"] != "",
+        sectors["sector_code"],
+    )
+
+    sectors = sectors[
+        (sectors["sector_code"] != "")
+        | (sectors["display_name"] != "")
+    ]
+
+    if sectors.empty:
+        return h.empty_result(
+            "No sectors were found in the loaded IATI data.",
+            source_url=xml_source(),
+        )
+
+    counts = (
+        sectors.groupby(
+            [
+                "vocabulary",
+                "sector_code",
+                "display_name",
+            ],
+            dropna=False,
+        )["activity_identifier"]
+        .nunique()
+        .reset_index(name="activities")
+        .sort_values(
+            ["activities", "display_name"],
+            ascending=[False, True],
+        )
+    )
+
+    total = len(counts)
+    shown = counts.head(limit)
+
+    table = h.build_table(
+        shown.to_dict("records"),
+        [
+            ("vocabulary", "Vocabulary"),
+            ("sector_code", "Sector code"),
+            ("display_name", "Sector"),
+            ("activities", "Activities"),
+        ],
+    )
+
+    summary = (
+        f"Found {total} sector value(s). "
+        f"Showing {len(shown)} result(s) with limit {limit}."
+    )
+
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+    )
+
+
+def activity_transactions(
+    iati_identifier: str,
+    limit: int = 50,
+):
+    """List transactions associated with one IATI activity."""
+    iati_identifier = iati_identifier.strip()
+
+    if not iati_identifier:
+        return h.empty_result(
+            "An IATI activity identifier is required.",
+            source_url=xml_source(),
+        )
+
+    if limit < 1:
+        return h.empty_result(
+            "The result limit must be greater than zero.",
+            source_url=xml_source(),
+        )
+
+    activities = activities_df()
+    activity = activities[
+        activities["activity_identifier"] == iati_identifier
+    ]
+
+    if activity.empty:
+        return h.empty_result(
+            f"No IATI activity found with identifier "
+            f"'{iati_identifier}'.",
+            source_url=xml_source(),
+        )
+
+    transactions = transactions_df()
+    matches = transactions[
+        transactions["activity_identifier"] == iati_identifier
+    ].copy()
+
+    if matches.empty:
+        return h.empty_result(
+            f"No transactions were found for IATI activity "
+            f"'{iati_identifier}'.",
+            source_url=xml_source(),
+        )
+
+    matches["transaction_date"] = (
+        matches["transaction_date"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+
+    matches = matches.sort_values(
+        ["transaction_date", "transaction_type"],
+        na_position="last",
+    )
+
+    total = len(matches)
+    shown = matches.head(limit).copy()
+
+    rows = shown[
+        [
+            "transaction_date",
+            "transaction_type",
+            "value",
+            "currency",
+            "description",
+        ]
+    ].copy()
+
+    rows["currency"] = rows["currency"].fillna("")
+    rows["description"] = rows["description"].fillna("")
+
+    table = h.build_table(
+        rows.to_dict("records"),
+        [
+            ("transaction_date", "Date"),
+            ("transaction_type", "Transaction type"),
+            ("value", "Value"),
+            ("currency", "Currency"),
+            ("description", "Description"),
+        ],
+        formatters={
+            "transaction_type": h.transaction_type_label,
+            "value": lambda value: (
+                ""
+                if value is None or str(value) == "nan"
+                else h.format_amount(value)
+            ),
+        },
+    )
+
+    title = activity.iloc[0]["title"]
+
+    summary = (
+        f"Found {total} transaction(s) for {title} "
+        f"({iati_identifier}). Showing {len(shown)} result(s) "
+        f"with limit {limit}."
+    )
+
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+    )

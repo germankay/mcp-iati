@@ -37,6 +37,7 @@ _cache: dict = {}
 REQUIRED_TOOL_CSVS = (
     "activities.csv",
     "transactions.csv",
+    "sectors.csv",
 )
 
 
@@ -50,6 +51,8 @@ DATAFRAME_SPECS = {
             "reporting_org_name",
             "reporting_org_ref",
             "default_currency",
+            "recipient_country_code",
+            "recipient_country_name",
         ),
         "numeric_columns": (),
     },
@@ -58,15 +61,32 @@ DATAFRAME_SPECS = {
         "required_columns": (
             "activity_identifier",
             "transaction_type",
+            "transaction_date",
             "value",
+            "currency",
+            "description",
         ),
         "numeric_columns": ("value",),
+    },
+    "sectors": {
+        "filename": "sectors.csv",
+        "required_columns": (
+            "activity_identifier",
+            "sector_code",
+            "sector_name",
+            "vocabulary",
+            "percentage",
+        ),
+        "numeric_columns": ("percentage",),
     },
 }
 
 
 TABLE_RELATIONSHIPS = {
-    "transactions.activity_identifier": (
+     "transactions.activity_identifier": (
+        "activities.activity_identifier"
+    ),
+    "sectors.activity_identifier": (
         "activities.activity_identifier"
     ),
 }
@@ -395,3 +415,8 @@ def activities_df() -> pd.DataFrame:
 def transactions_df() -> pd.DataFrame:
     """Return the shared transactions DataFrame."""
     return _dataframe("transactions")
+
+
+def sectors_df() -> pd.DataFrame:
+    """Return the shared sectors DataFrame."""
+    return _dataframe("sectors")
