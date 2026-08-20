@@ -3,7 +3,7 @@ Regression tests for the queries over synthetic data (see `seed_cache` in
 conftest.py: preloaded cache, no network).
 """
 
-from mcp_iati.activities import queries
+from mcp_iati.activities import queries, data
 
 
 def _text(result):
@@ -66,3 +66,33 @@ def test_activity_summary_preserves_not_found_response(seed_cache):
     )
     assert "table" not in result.structuredContent
     assert result.structuredContent["sources"] == [seed_cache.source]
+
+
+def test_tools_use_preloaded_dataframes_without_preparing_data(
+        seed_cache,
+        monkeypatch,
+    ):
+    """
+    Esta prueba confirma que:
+        - las tools utilizan los DataFrames precargados;
+        - no vuelven a leer los CSV;
+        - no descargan XML;
+        - no ejecutan okfn-iati;
+        - búsqueda y resumen continúan funcionando.
+    """
+    def unexpected_preparation():
+        raise AssertionError(
+            "The tool attempted to read or prepare data again"
+        )
+
+    monkeypatch.setattr(
+        data,
+        "_csv_folder",
+        unexpected_preparation,
+    )
+
+    search_result = queries.search_activities("transport")
+    summary_result = queries.activity_summary("IATI-001")
+
+    assert "IATI-001" in search_result.content[0].text
+    assert "Sustainable transport programme" in summary_result.content[0].text
