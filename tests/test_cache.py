@@ -223,3 +223,205 @@ def test_csv_folder_reuses_persistent_conversion(monkeypatch, tmp_path):
 
     assert first_folder == second_folder
     assert conversion_calls == [source]
+
+
+def test_conversion_failed_with_complete_cache_reuses_previous(
+    monkeypatch,
+    tmp_path,
+):
+    source = tmp_path / "source.xml"
+    source.write_text("<iati-activities />")
+
+    settings = _settings(tmp_path)
+    settings.xml_path = source
+    conversion_calls = []
+
+    monkeypatch.setattr(data, "get_settings", lambda: settings)
+
+    cache_key = data._source_cache_key()
+    existing_folder = tmp_path / "csv" / cache_key
+    existing_folder.mkdir(parents=True)
+
+    (existing_folder / "activities.csv").write_text("id\n1\n")
+    (existing_folder / "transactions.csv").write_text("id\n1\n")
+
+    marker = existing_folder / ".complete"
+    marker.touch()
+
+    expired_time = time.time() - settings.cache_ttl_seconds - 1
+    os.utime(marker, (expired_time, expired_time))
+
+    class Converter:
+        latest_errors = []
+
+        def xml_to_csv_folder(self, path, folder):
+            conversion_calls.append(path)
+            raise RuntimeError("conversion failed")
+
+    monkeypatch.setattr(data, "IatiMultiCsvConverter", Converter)
+    data._cache.clear()
+
+    try:
+        with pytest.warns(
+            RuntimeWarning,
+            match="using the last complete cache",
+        ):
+            result = data._csv_folder()
+    finally:
+        data._cache.clear()
+
+    assert result == existing_folder
+    assert conversion_calls == [source]
+    assert (existing_folder / "activities.csv").exists()
+    assert (existing_folder / "transactions.csv").exists()
+    assert (existing_folder / ".complete").exists()
+
+
+def test_conversion_failed_without_cache_raises_runtime_error(monkeypatch, tmp_path):
+    source = tmp_path / "source.xml"
+    source.write_text("<iati-activities />")
+    settings = _settings(tmp_path)
+    settings.xml_path = source
+
+    class Converter:
+        latest_errors = []
+
+        def xml_to_csv_folder(self, path, folder):
+            raise RuntimeError("conversion failed")
+
+    monkeypatch.setattr(data, "get_settings", lambda: settings)
+    monkeypatch.setattr(data, "IatiMultiCsvConverter", Converter)
+    data._cache.clear()
+
+    try:
+        with pytest.raises(RuntimeError, match="conversion failed"):
+            data._csv_folder()
+    finally:
+        data._cache.clear()
+
+
+def test_conversion_failed_for_brazil_does_not_use_argentina_cache(monkeypatch, tmp_path):
+    source_brazil = tmp_path / "source.xml"
+    source_brazil.write_text("<iati-activities />")
+    settings = _settings(tmp_path)
+    settings.sample = "iadb-Brazil.xml"
+    settings.xml_path = source_brazil
+    conversion_calls = []
+
+    argentina_folder = tmp_path / "argentina-cache"
+    argentina_folder.mkdir()
+    (argentina_folder / "activities.csv").write_text("id\n1\n")
+
+    class Converter:
+        latest_errors = []
+
+        def xml_to_csv_folder(self, path, folder):
+            conversion_calls.append(path)
+            raise RuntimeError("conversion failed")
+
+    monkeypatch.setattr(data, "get_settings", lambda: settings)
+    monkeypatch.setattr(data, "IatiMultiCsvConverter", Converter)
+    data._cache.clear()
+
+    try:
+        with pytest.raises(RuntimeError, match="conversion failed"):
+            data._csv_folder()
+    finally:
+        data._cache.clear()
+
+
+def test_incomplete_cache_never_used_as_fallback(monkeypatch, tmp_path):
+    source = tmp_path / "source.xml"
+    source.write_text("<iati-activities />")
+    settings = _settings(tmp_path)
+    settings.xml_path = source
+
+    incomplete_folder = tmp_path / "csv-cache"
+    incomplete_folder.mkdir()
+    (incomplete_folder / "activities.csv").write_text("id\n1\n")
+
+    class Converter:
+        latest_errors = []
+
+        def xml_to_csv_folder(self, path, folder):
+            raise RuntimeError("conversion failed")
+
+    monkeypatch.setattr(data, "get_settings", lambda: settings)
+    monkeypatch.setattr(data, "IatiMultiCsvConverter", Converter)
+    data._cache.clear()
+    data._cache["csv_folder"] = incomplete_folder
+
+    try:
+        with pytest.raises(RuntimeError, match="conversion failed"):
+            data._csv_folder()
+    finally:
+        data._cache.clear()
+
+
+def test_failed_replacement_restores_previous_directory(monkeypatch, tmp_path):
+    source = tmp_path / "source.xml"
+    source.write_text("<iati-activities />")
+    settings = _settings(tmp_path)
+    settings.xml_path = source
+    conversion_calls = []
+
+    previous_folder = tmp_path / "csv-cache-1"
+    previous_folder.mkdir()
+    (previous_folder / "activities.csv").write_text("id\n1\n")
+    (previous_folder / "transactions.csv").write_text("id\n1\n")
+    (previous_folder / ".complete").touch()
+
+    class Converter:
+        latest_errors = []
+        call_count = 0
+
+        def xml_to_csv_folder(self, path, folder):
+            conversion_calls.append(path)
+            self.call_count += 1
+            if self.call_count > 1:
+                raise RuntimeError("replacement failed")
+            (folder / "activities.csv").write_text("id\n1\n")
+            (folder / "transactions.csv").write_text("id\n1\n")
+            return True
+
+    converter = Converter()
+    monkeypatch.setattr(data, "get_settings", lambda: settings)
+    monkeypatch.setattr(data, "IatiMultiCsvConverter", lambda: converter)
+    data._cache.clear()
+
+    try:
+        first_folder = data._csv_folder()
+        assert first_folder == previous_folder or converter.call_count == 1
+    finally:
+        data._cache.clear()
+
+
+def test_successful_conversion_removes_backup_and_activates_new_cache(monkeypatch, tmp_path):
+    source = tmp_path / "source.xml"
+    source.write_text("<iati-activities />")
+    settings = _settings(tmp_path)
+    settings.xml_path = source
+    conversion_calls = []
+
+    class Converter:
+        latest_errors = []
+
+        def xml_to_csv_folder(self, path, folder):
+            conversion_calls.append(path)
+            (folder / "activities.csv").write_text("id\n1\n")
+            (folder / "transactions.csv").write_text("id\n1\n")
+            (folder / ".complete").touch()
+            return True
+
+    monkeypatch.setattr(data, "get_settings", lambda: settings)
+    monkeypatch.setattr(data, "IatiMultiCsvConverter", Converter)
+    data._cache.clear()
+
+    try:
+        result = data._csv_folder()
+        assert result is not None
+        assert (result / ".complete").exists()
+        assert "csv_folder" in data._cache
+        assert data._cache["csv_folder"] == result
+    finally:
+        data._cache.clear()

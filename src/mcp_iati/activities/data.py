@@ -144,37 +144,74 @@ def _source_cache_key() -> str:
     return hashlib.sha256(source.encode()).hexdigest()[:16]
 
 
+def _csv_cache_is_complete(folder: Path) -> bool:
+    """Return whether the CSV cache contains all files required by the tools."""
+    required_files = (
+        *(folder / filename for filename in REQUIRED_TOOL_CSVS),
+        folder / ".complete",
+    )
+    return all(path.is_file() for path in required_files)
+
+
 def _csv_cache_is_fresh(
     folder: Path,
     source_path: Path | None = None,
 ) -> bool:
-    """Return whether a complete CSV cache exists and is still valid."""
+    """Return whether a complete CSV cache is still valid."""
     marker = folder / ".complete"
-    required_files = (
-        folder / "activities.csv",
-        folder / "transactions.csv",
-        marker,
-    )
-    if not all(path.exists() for path in required_files):
+
+    if not _csv_cache_is_complete(folder):
         return False
     if not _cache_is_fresh(marker):
         return False
     if source_path and not source_path.exists():
         return False
 
-    return not source_path or marker.stat().st_mtime >= source_path.stat().st_mtime
+    return (
+        source_path is None
+        or marker.stat().st_mtime >= source_path.stat().st_mtime
+    )
 
 
 def _clear_expired_memory_cache() -> None:
     """Drop in-process DataFrames when their disk cache has expired."""
+    if _cache.get("using_stale_csv"):
+        return
+
     cached_folder = _cache.get("csv_folder")
     local_source = get_settings().xml_path
+
     if cached_folder and not _csv_cache_is_fresh(
         Path(cached_folder),
         local_source,
     ):
-        for key in ("csv_folder", "activities", "transactions"):
+        for key in (
+            "csv_folder",
+            "activities",
+            "transactions",
+            "using_stale_csv",
+        ):
             _cache.pop(key, None)
+
+def _replace_csv_cache(tmp_dir: Path, cache_dir: Path) -> None:
+    """Atomically replace a CSV cache while preserving rollback data."""
+    backup_dir = cache_dir.with_name(f".{cache_dir.name}.previous")
+
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
+
+    if cache_dir.exists():
+        cache_dir.rename(backup_dir)
+
+    try:
+        tmp_dir.rename(cache_dir)
+    except Exception:
+        if backup_dir.exists() and not cache_dir.exists():
+            backup_dir.rename(cache_dir)
+        raise
+    else:
+        if backup_dir.exists():
+            shutil.rmtree(backup_dir)
 
 
 def _csv_folder() -> Path:
@@ -198,30 +235,54 @@ def _csv_folder() -> Path:
         tmp_dir = Path(
             tempfile.mkdtemp(prefix=f"{cache_key}-", dir=csv_parent)
         )
+
         try:
             converter = IatiMultiCsvConverter()
+
             if not converter.xml_to_csv_folder(path, tmp_dir):
                 raise RuntimeError(
                     f"Failed to convert {path} to CSV: "
                     f"{converter.latest_errors}"
                 )
-            required_files = (
-                tmp_dir / "activities.csv",
-                tmp_dir / "transactions.csv",
-            )
-            if not all(file.exists() for file in required_files):
+
+            missing_files = [
+                filename
+                for filename in REQUIRED_TOOL_CSVS
+                if not (tmp_dir / filename).is_file()
+            ]
+            if missing_files:
+                missing = ", ".join(missing_files)
                 raise RuntimeError(
                     "IATI conversion did not produce the required CSVs "
-                    f"for {path}."
+                    f"for {path}: {missing}"
                 )
 
             (tmp_dir / ".complete").touch()
-            if cache_dir.exists():
-                shutil.rmtree(cache_dir)
-            tmp_dir.rename(cache_dir)
+            _replace_csv_cache(tmp_dir, cache_dir)
+
+        except Exception as error:
+            if _csv_cache_is_complete(cache_dir):
+                warnings.warn(
+                    "Could not refresh IATI CSV cache from "
+                    f"{xml_source()}; using the last complete cache "
+                    f"at {cache_dir}: {error}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                _cache["csv_folder"] = cache_dir
+                _cache["using_stale_csv"] = True
+                return cache_dir
+
+            raise RuntimeError(
+                "Could not create IATI CSV cache from "
+                f"{xml_source()}: {error}"
+            ) from error
+
         finally:
             if tmp_dir.exists():
                 shutil.rmtree(tmp_dir)
+
+        _cache.pop("using_stale_csv", None)
         _cache["csv_folder"] = cache_dir
     return _cache["csv_folder"]
 
