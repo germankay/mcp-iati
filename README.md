@@ -91,6 +91,21 @@ export MCP_IATI_CACHE_TTL_SECONDS=604800
 uv run mcp-server
 ```
 
+### CSV tables used by the plugin
+
+| Table | Columns currently used | Relationship |
+|---|---|---|
+| `activities.csv` | `activity_identifier`, `title`, `activity_status`, `reporting_org_name`, `reporting_org_ref`, `default_currency` | `activity_identifier` identifies the activity |
+| `transactions.csv` | `activity_identifier`, `transaction_type`, `value` | `activity_identifier` references `activities.csv` |
+
+CSV files are loaded with pandas and cached in memory. Repeated tool calls
+reuse the same DataFrame instances. Transaction values are converted to
+numeric values, while identifiers and categorical columns remain strings.
+
+The data preparation and conversion logic is kept separate from the query
+logic. Additional CSV tables can be added through `DATAFRAME_SPECS`.
+
+
 ## Development
 
 ```bash

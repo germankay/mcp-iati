@@ -40,6 +40,38 @@ REQUIRED_TOOL_CSVS = (
 )
 
 
+DATAFRAME_SPECS = {
+    "activities": {
+        "filename": "activities.csv",
+        "required_columns": (
+            "activity_identifier",
+            "title",
+            "activity_status",
+            "reporting_org_name",
+            "reporting_org_ref",
+            "default_currency",
+        ),
+        "numeric_columns": (),
+    },
+    "transactions": {
+        "filename": "transactions.csv",
+        "required_columns": (
+            "activity_identifier",
+            "transaction_type",
+            "value",
+        ),
+        "numeric_columns": ("value",),
+    },
+}
+
+
+TABLE_RELATIONSHIPS = {
+    "transactions.activity_identifier": (
+        "activities.activity_identifier"
+    ),
+}
+
+
 def _cache_is_fresh(path: Path) -> bool:
     """Return whether a cached file is still inside the configured TTL."""
     if not path.exists():
@@ -174,7 +206,7 @@ def _csv_cache_is_fresh(
 
 
 def _clear_expired_memory_cache() -> None:
-    """Drop in-process DataFrames when their disk cache has expired."""
+    """Drop in-process data when their disk cache has expired."""
     if _cache.get("using_stale_csv"):
         return
 
@@ -185,13 +217,8 @@ def _clear_expired_memory_cache() -> None:
         Path(cached_folder),
         local_source,
     ):
-        for key in (
-            "csv_folder",
-            "activities",
-            "transactions",
-            "using_stale_csv",
-        ):
-            _cache.pop(key, None)
+        _cache.clear()
+
 
 def _replace_csv_cache(tmp_dir: Path, cache_dir: Path) -> None:
     """Atomically replace a CSV cache while preserving rollback data."""
@@ -320,17 +347,51 @@ def prepare_data() -> Path:
     return folder
 
 
-def activities_df() -> pd.DataFrame:
+def _dataframe(table_name: str) -> pd.DataFrame:
+    """Load, validate and share a configured CSV as a pandas DataFrame."""
+    try:
+        spec = DATAFRAME_SPECS[table_name]
+    except KeyError as error:
+        raise ValueError(
+            f"Unknown IATI CSV table: {table_name}"
+        ) from error
+
+    cache_key = f"dataframe:{table_name}"
     _clear_expired_memory_cache()
-    if "activities" not in _cache:
-        _cache["activities"] = pd.read_csv(_csv_folder() / "activities.csv", dtype=str)
-    return _cache["activities"]
+
+    if cache_key in _cache:
+        return _cache[cache_key]
+
+    csv_path = _csv_folder() / spec["filename"]
+    dataframe = pd.read_csv(csv_path, dtype=str)
+
+    missing_columns = [
+        column
+        for column in spec["required_columns"]
+        if column not in dataframe.columns
+    ]
+    if missing_columns:
+        missing = ", ".join(missing_columns)
+        raise RuntimeError(
+            f"{spec['filename']} is missing required columns: "
+            f"{missing}"
+        )
+
+    for column in spec["numeric_columns"]:
+        dataframe[column] = pd.to_numeric(
+            dataframe[column],
+            errors="coerce",
+        )
+
+    _cache[cache_key] = dataframe
+    return _cache[cache_key]
+
+
+def activities_df() -> pd.DataFrame:
+    """Return the shared activities DataFrame."""
+    return _dataframe("activities")
 
 
 def transactions_df() -> pd.DataFrame:
-    _clear_expired_memory_cache()
-    if "transactions" not in _cache:
-        df = pd.read_csv(_csv_folder() / "transactions.csv", dtype=str)
-        df["value"] = pd.to_numeric(df["value"], errors="coerce")
-        _cache["transactions"] = df
-    return _cache["transactions"]
+    """Return the shared transactions DataFrame."""
+    return _dataframe("transactions")
