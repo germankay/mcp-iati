@@ -73,12 +73,12 @@ def test_tools_use_preloaded_dataframes_without_preparing_data(
         monkeypatch,
     ):
     """
-    Esta prueba confirma que:
-        - las tools utilizan los DataFrames precargados;
-        - no vuelven a leer los CSV;
-        - no descargan XML;
-        - no ejecutan okfn-iati;
-        - búsqueda y resumen continúan funcionando.
+    This test confirms that:
+        - the tools use preloaded DataFrames;
+        - they don't re-read CSV files;
+        - they don't download XML;
+        - they don't execute okfn-iati;
+        - search and summary continue to work.
     """
     def unexpected_preparation():
         raise AssertionError(
