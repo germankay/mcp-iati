@@ -498,6 +498,135 @@ def test_transaction_totals_by_organisation_rejects_invalid_limit(seed_cache):
     assert result.structuredContent["sources"] == [seed_cache.source]
 
 
+def test_transaction_totals_by_country_groups_by_country_and_currency(
+    seed_cache,
+):
+    data._cache["dataframe:activities"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "recipient_country_name": "Argentina",
+            "recipient_country_code": "AR",
+            "default_currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "recipient_country_name": "Brazil",
+            "recipient_country_code": "BR",
+            "default_currency": "EUR",
+        },
+        {
+            "activity_identifier": "IATI-003",
+            "recipient_country_name": "",
+            "recipient_country_code": "",
+            "default_currency": "USD",
+        },
+    ])
+    data._cache["dataframe:transactions"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 1000.0,
+            "currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 200.0,
+            "currency": "EUR",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "transaction_type": "2",
+            "value": 300.0,
+            "currency": "EUR",
+        },
+        {
+            "activity_identifier": "IATI-003",
+            "transaction_type": "2",
+            "value": 500.0,
+            "currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "3",
+            "value": 50.0,
+            "currency": "USD",
+        },
+    ])
+
+    result = queries.transaction_totals_by_country(transaction_type="commitment")
+
+    assert result.structuredContent["table"] == [
+        [
+            "Country code",
+            "Recipient country",
+            "Transaction type",
+            "Currency",
+            "Total",
+        ],
+        ["BR", "Brazil", "Out Commitment", "EUR", "300.00"],
+        ["AR", "Argentina", "Out Commitment", "EUR", "200.00"],
+        ["AR", "Argentina", "Out Commitment", "USD", "1,000.00"],
+        ["", "Unknown recipient country", "Out Commitment", "USD", "500.00"],
+    ]
+    assert result.structuredContent["sources"] == [seed_cache.source]
+    assert "Found 4 country transaction total(s)." in _text(result)
+
+
+def test_transaction_totals_by_country_filters_by_currency_and_uses_default_currency(
+    seed_cache,
+):
+    data._cache["dataframe:activities"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "recipient_country_name": "Argentina",
+            "recipient_country_code": "AR",
+            "default_currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "recipient_country_name": "Brazil",
+            "recipient_country_code": "BR",
+            "default_currency": "EUR",
+        },
+    ])
+    data._cache["dataframe:transactions"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 1000.0,
+            "currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "transaction_type": "2",
+            "value": 300.0,
+            "currency": "",
+        },
+    ])
+
+    result = queries.transaction_totals_by_country(
+        transaction_type="commitment",
+        currency="EUR",
+    )
+
+    assert result.structuredContent["table"][1][0] == "BR"
+    assert result.structuredContent["table"][1][-2] == "EUR"
+    assert result.structuredContent["table"][1][-1] == "300.00"
+
+
+def test_transaction_totals_by_country_rejects_invalid_transaction_type(
+    seed_cache,
+):
+    result = queries.transaction_totals_by_country(transaction_type="invalid")
+
+    assert result.content[0].text == (
+        "Unsupported transaction type. Use commitment, disbursement, 2 or 3."
+    )
+    assert "table" not in result.structuredContent
+    assert result.structuredContent["sources"] == [seed_cache.source]
+
+
 @pytest.mark.parametrize(
     "transaction_type",
     ["2", "commitment", "out commitment"],

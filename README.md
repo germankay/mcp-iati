@@ -32,6 +32,7 @@ Available tools:
   disbursements by reporting organisation, keeping transaction types and
   currencies separate and clarifying that the reporting organisation is the
   publisher of the activity data, not necessarily the funder or implementer.
+- `transaction_totals_by_country(transaction_type="2", currency=None, limit=50)`: group commitments and disbursements by recipient country, keeping transaction types and currencies separate and using a clear fallback label when country details are missing.
 - `top_activities_by_amount(transaction_type="2", currency=None, limit=10)`: 
   list activities with the highest commitment or disbursement totals, ranked
   independently for each currency.

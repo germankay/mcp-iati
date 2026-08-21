@@ -123,6 +123,11 @@ DATA_TOOLS = [
         {},
     ),
     (
+        "transaction_totals_by_country",
+        queries.transaction_totals_by_country,
+        {"transaction_type": "commitment"},
+    ),
+    (
         "top_activities_by_amount",
         queries.top_activities_by_amount,
         {"transaction_type": "commitment"},

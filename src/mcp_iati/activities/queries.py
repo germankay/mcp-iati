@@ -771,6 +771,203 @@ def transaction_totals_by_organisation(limit: int = 50):
     )
 
 
+def transaction_totals_by_country(
+    transaction_type: str = "2",
+    currency: str | None = None,
+    limit: int = 50,
+):
+    """Group commitments and disbursements by recipient country.
+
+    Amounts with different currencies and transaction types are reported
+    separately. Missing country names fall back to the country code, and
+    missing country data falls back to "Unknown recipient country".
+    """
+    if limit < 1:
+        return h.empty_result(
+            "The result limit must be greater than zero.",
+            source_url=xml_source(),
+        )
+
+    transaction_type_code = _transaction_type_code(transaction_type)
+    if transaction_type_code is None:
+        return h.empty_result(
+            "Unsupported transaction type. Use commitment, disbursement, "
+            "2 or 3.",
+            source_url=xml_source(),
+        )
+
+    selected_currency = ""
+    if currency is not None:
+        selected_currency = str(currency).strip().upper()
+        if not selected_currency:
+            return h.empty_result(
+                "Currency cannot be empty when provided.",
+                source_url=xml_source(),
+            )
+
+    activities = activities_df()[
+        [
+            "activity_identifier",
+            "recipient_country_code",
+            "recipient_country_name",
+            "default_currency",
+        ]
+    ].copy()
+    activities = activities.drop_duplicates(subset=["activity_identifier"])
+    for column in [
+        "recipient_country_code",
+        "recipient_country_name",
+        "default_currency",
+    ]:
+        activities[column] = (
+            activities[column]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+
+    transactions = transactions_df().copy()
+    if transactions.empty:
+        return h.empty_result(
+            "No transactions were found in the loaded IATI data.",
+            source_url=xml_source(),
+        )
+
+    transactions["transaction_type"] = (
+        transactions["transaction_type"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    transactions["value"] = pd.to_numeric(transactions["value"], errors="coerce")
+    transactions = transactions[
+        (transactions["transaction_type"] == transaction_type_code)
+        & transactions["value"].notna()
+    ].copy()
+
+    if transactions.empty:
+        return h.empty_result(
+            "No matching transactions were found in the loaded IATI data.",
+            source_url=xml_source(),
+        )
+
+    transactions = transactions.merge(
+        activities,
+        on="activity_identifier",
+        how="left",
+    )
+
+    transactions["recipient_country_code"] = (
+        transactions["recipient_country_code"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    transactions["recipient_country_name"] = (
+        transactions["recipient_country_name"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    transactions["default_currency"] = (
+        transactions["default_currency"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    transactions["currency"] = (
+        transactions["currency"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    transactions["currency"] = transactions["currency"].where(
+        transactions["currency"] != "",
+        transactions["default_currency"],
+    )
+    transactions["currency"] = transactions["currency"].fillna("")
+    transactions["currency"] = transactions["currency"].astype(str).str.strip()
+    transactions["currency"] = transactions["currency"].where(
+        transactions["currency"] != "",
+        "Unknown",
+    )
+
+    if selected_currency:
+        transactions = transactions[transactions["currency"] == selected_currency]
+
+    if transactions.empty:
+        return h.empty_result(
+            f"No transactions were found for currency '{selected_currency}'.",
+            source_url=xml_source(),
+        )
+
+    transactions["display_country_name"] = transactions[
+        "recipient_country_name"
+    ].where(
+        transactions["recipient_country_name"] != "",
+        transactions["recipient_country_code"],
+    )
+    transactions["display_country_name"] = transactions[
+        "display_country_name"
+    ].where(
+        transactions["display_country_name"] != "",
+        "Unknown recipient country",
+    )
+
+    grouped = (
+        transactions.groupby(
+            [
+                "recipient_country_code",
+                "display_country_name",
+                "transaction_type",
+                "currency",
+            ],
+            dropna=False,
+        )["value"]
+        .sum()
+        .reset_index()
+    )
+    grouped = grouped.sort_values(
+        ["currency", "value", "display_country_name"],
+        ascending=[True, False, True],
+        kind="mergesort",
+    )
+    grouped = grouped.groupby("currency", group_keys=False).head(limit)
+
+    rows = []
+    for _, row in grouped.iterrows():
+        rows.append(
+            {
+                "country_code": row["recipient_country_code"],
+                "country_name": row["display_country_name"],
+                "transaction_type": row["transaction_type"],
+                "currency": row["currency"],
+                "total": row["value"],
+            }
+        )
+
+    table = h.build_table(
+        rows,
+        [
+            ("country_code", "Country code"),
+            ("country_name", "Recipient country"),
+            ("transaction_type", "Transaction type"),
+            ("currency", "Currency"),
+            ("total", "Total"),
+        ],
+        formatters={
+            "transaction_type": h.transaction_type_label,
+            "total": h.format_amount,
+        },
+    )
+
+    summary = f"Found {len(rows)} country transaction total(s)."
+    return h.text_result(summary, source_url=xml_source(), table=table)
+
+
 def top_activities_by_amount(
     transaction_type: str = "2",
     currency: str | None = None,

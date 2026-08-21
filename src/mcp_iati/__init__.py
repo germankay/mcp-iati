@@ -54,6 +54,7 @@ def _register_iati_tools(mcp):  # noqa: C901
             "Show the transactions for activity XI-IATI-IADB-BR-L1231",
             "How much was committed and disbursed each year?",
             "How much was committed and disbursed by each reporting organisation?",
+            "How much was committed and disbursed by recipient country?",
             "Which activities have the highest commitment totals?",
             "Which activities have the highest disbursement totals in USD?",
             "Show annual commitments and disbursements from 2022 to 2024.",
@@ -366,6 +367,48 @@ def _register_iati_tools(mcp):  # noqa: C901
         )
     )
     mcp.tool()(transaction_totals_by_organisation)
+
+    def transaction_totals_by_country(
+        transaction_type: str = "2",
+        currency: str | None = None,
+        limit: int = 50,
+    ) -> DataToolOutput:
+        return activities.transaction_totals_by_country(
+            transaction_type=transaction_type,
+            currency=currency,
+            limit=limit,
+        )
+
+    transaction_totals_by_country.__doc__ = (
+        """Group commitments and disbursements by recipient country.
+
+        Amounts with different currencies and transaction types are reported
+        separately. Missing country names fall back to the country code, and
+        missing country data falls back to "Unknown recipient country".
+
+        Args:
+            transaction_type: Commitment or disbursement. Accepts commitment,
+                out commitment, disbursement, 2 or 3.
+            currency: Optional currency code, for example USD or EUR.
+            limit: Maximum number of grouped rows to return. Default: 50.
+
+        Returns:
+            A table containing the country code and name, transaction type,
+            currency and total amount.
+
+        Relevant IATI terms:
+        """
+        + glossary_text(
+            "recipient country or region",
+            "transaction",
+            "transaction type",
+            "transaction value",
+            "commitment",
+            "disbursement",
+            "default currency",
+        )
+    )
+    mcp.tool()(transaction_totals_by_country)
 
     def top_activities_by_amount(
         transaction_type: str = "2",
