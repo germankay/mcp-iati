@@ -2,6 +2,7 @@
 Regression tests for the queries over synthetic data (see `seed_cache` in
 conftest.py: preloaded cache, no network).
 """
+import pandas as pd
 import pytest
 from mcp_iati.activities import queries, data
 
@@ -213,6 +214,123 @@ def test_list_sectors_returns_counts_and_source(seed_cache):
     assert "Found 2 sector value(s)." in text
     assert "Showing 2 result(s) with limit 100." in text
     assert "nan" not in text.lower()
+
+
+def test_transaction_totals_by_year_groups_by_year_type_and_currency(
+    seed_cache,
+    monkeypatch,
+):
+    data._cache["dataframe:transactions"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "transaction_date": "2023-01-01",
+            "value": 500.0,
+            "currency": "USD",
+            "description": "First",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "transaction_date": "2024-02-01",
+            "value": 1500.0,
+            "currency": "USD",
+            "description": "Second",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "3",
+            "transaction_date": "2024-03-01",
+            "value": 750.0,
+            "currency": "USD",
+            "description": "Third",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "transaction_date": "2024-04-01",
+            "value": 200.0,
+            "currency": "EUR",
+            "description": "Fourth",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "3",
+            "transaction_date": "2024-05-01",
+            "value": 100.0,
+            "currency": "EUR",
+            "description": "Fifth",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "transaction_date": "bad-date",
+            "value": 123.0,
+            "currency": "USD",
+            "description": "Ignored",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "transaction_date": "2024-06-01",
+            "value": "not-a-number",
+            "currency": "USD",
+            "description": "Ignored",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "transaction_date": "2024-06-02",
+            "value": 50.0,
+            "currency": "",
+            "description": "Falls back to default currency",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "4",
+            "transaction_date": "2024-06-03",
+            "value": 999.0,
+            "currency": "USD",
+            "description": "Ignored type",
+        },
+    ])
+
+    result = queries.transaction_totals_by_year()
+
+    assert result.structuredContent["table"] == [
+        ["Year", "Transaction type", "Currency", "Total"],
+        [2023, "Out Commitment", "USD", "500.00"],
+        [2024, "Out Commitment", "EUR", "200.00"],
+        [2024, "Out Commitment", "USD", "1,550.00"],
+        [2024, "Disbursement", "EUR", "100.00"],
+        [2024, "Disbursement", "USD", "750.00"],
+    ]
+    assert result.structuredContent["sources"] == [seed_cache.source]
+
+    text = result.content[0].text
+    assert "Found 5 annual transaction total(s)." in text
+    assert "2023 | Out Commitment | USD | 500.00" in text
+    assert "2024 | Out Commitment | USD | 1,550.00" in text
+    assert "2024 | Disbursement | USD | 750.00" in text
+    assert "2024 | Out Commitment | EUR | 200.00" in text
+    assert "2024 | Disbursement | EUR | 100.00" in text
+
+
+def test_transaction_totals_by_year_applies_year_filters(seed_cache):
+    result = queries.transaction_totals_by_year(year_from=2023, year_to=2024)
+
+    assert result.structuredContent["table"][-1] == [2024, "Disbursement", "USD", "750.00"]
+    assert all(row[0] == 2024 for row in result.structuredContent["table"][1:])
+
+
+def test_transaction_totals_by_year_rejects_invalid_range(seed_cache):
+    result = queries.transaction_totals_by_year(year_from=2025, year_to=2024)
+
+    assert result.content[0].text == (
+        "The year_from value cannot be greater than year_to."
+    )
+    assert "table" not in result.structuredContent
+    assert result.structuredContent["sources"] == [seed_cache.source]
 
 
 def test_activity_transactions_returns_chronological_rows_and_source(

@@ -24,6 +24,10 @@ Available tools:
   totals for one activity.
 - `activity_transactions(iati_identifier, limit=50)`: list an activity's
   transactions in chronological order.
+- `transaction_totals_by_year(year_from=None, year_to=None)`: group
+  commitment and disbursement totals by year, transaction type and currency,
+  while ignoring invalid dates/values and using the activity default currency
+  when a transaction currency is missing.
 - `define_term(term)`: explain an IATI term using the central glossary.
 
 **Guiding principle:** these tools only use generic IATI standard fields

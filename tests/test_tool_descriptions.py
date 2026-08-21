@@ -19,6 +19,7 @@ def test_register_tools_adds_expected_tools(fake_mcp):
         "list_sectors",
         "activity_summary",
         "activity_transactions",
+        "transaction_totals_by_year",
         "define_term",
     ]
 
@@ -45,6 +46,8 @@ def test_plugin_sample_questions_cover_main_use_cases(fake_mcp):
     assert "Which recipient countries are present in this IATI file?" in questions
     assert "Which IATI activities have Brazil as their recipient country?" in questions
     assert "Show the transactions for activity XI-IATI-IADB-BR-L1231" in questions
+    assert "How much was committed and disbursed each year?" in questions
+    assert "Show annual commitments and disbursements from 2022 to 2024." in questions
 
 def test_no_tool_disponible_returns_clear_fallback_message(fake_mcp):
     register_tools(fake_mcp)

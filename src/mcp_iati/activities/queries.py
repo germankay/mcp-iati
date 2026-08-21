@@ -7,6 +7,8 @@ just the bundled sample - see data.py.
 Each query passes `xml_source()` as the source; the raw table data is
 embedded into the AI-facing text by `h.text_result` (see helpers/format.py).
 """
+import pandas as pd
+
 from mcp_iati import helpers as h
 from mcp_iati.activities.data import (
     activities_df,
@@ -445,6 +447,137 @@ def list_sectors(limit: int = 100):
         source_url=xml_source(),
         table=table,
     )
+
+
+def transaction_totals_by_year(
+    year_from: int | None = None,
+    year_to: int | None = None,
+):
+    """Group commitments and disbursements by year and currency.
+
+    Only commitment and disbursement transactions are included. Amounts with
+    different currencies are always reported separately.
+
+    Args:
+        year_from: Optional first year to include.
+        year_to: Optional last year to include.
+
+    Returns:
+        A chronological table containing year, transaction type, currency and
+        total amount.
+    """
+    if year_from is not None and year_to is not None and year_from > year_to:
+        return h.empty_result(
+            "The year_from value cannot be greater than year_to.",
+            source_url=xml_source(),
+        )
+
+    transactions = transactions_df().copy()
+
+    if transactions.empty:
+        return h.empty_result(
+            "No transactions were found in the loaded IATI data.",
+            source_url=xml_source(),
+        )
+
+    transactions["transaction_type"] = transactions["transaction_type"].fillna("")
+    transactions["transaction_date"] = (
+        transactions["transaction_date"].fillna("").astype(str).str.strip()
+    )
+
+    allowed_types = {"2", "3"}
+    transactions = transactions[
+        transactions["transaction_type"].isin(allowed_types)
+    ].copy()
+
+    transactions["year"] = pd.NA
+    for idx, value in transactions["transaction_date"].items():
+        try:
+            year = pd.to_datetime(value, errors="coerce").year
+        except Exception:
+            year = pd.NA
+        if pd.notna(year):
+            transactions.at[idx, "year"] = int(year)
+
+    transactions = transactions[pd.notna(transactions["year"])].copy()
+
+    if year_from is not None:
+        transactions = transactions[transactions["year"] >= year_from]
+    if year_to is not None:
+        transactions = transactions[transactions["year"] <= year_to]
+
+    transactions["value"] = pd.to_numeric(
+        transactions["value"],
+        errors="coerce",
+    )
+    transactions = transactions[pd.notna(transactions["value"])]
+
+    if transactions.empty:
+        return h.empty_result(
+            "No transaction totals were found for the requested year range.",
+            source_url=xml_source(),
+        )
+
+    activities = activities_df()[["activity_identifier", "default_currency"]].copy()
+    activities = activities.drop_duplicates(subset=["activity_identifier"])
+    activities["default_currency"] = (
+        activities["default_currency"].fillna("").astype(str).str.strip()
+    )
+
+    transactions = transactions.merge(
+        activities,
+        on="activity_identifier",
+        how="left",
+    )
+
+    transactions["currency"] = transactions["currency"].fillna("")
+    transactions["currency"] = transactions["currency"].astype(str).str.strip()
+    transactions["currency"] = transactions["currency"].where(
+        transactions["currency"] != "",
+        transactions["default_currency"],
+    )
+    transactions["currency"] = transactions["currency"].fillna("")
+
+    grouped = (
+        transactions.groupby(
+            ["year", "transaction_type", "currency"],
+            dropna=False,
+        )["value"]
+        .sum()
+        .reset_index()
+    )
+    grouped = grouped.sort_values(
+        ["year", "transaction_type", "currency"],
+        kind="mergesort",
+    )
+
+    rows = []
+    for _, row in grouped.iterrows():
+        rows.append(
+            {
+                "year": int(row["year"]),
+                "transaction_type": row["transaction_type"],
+                "currency": row["currency"],
+                "total": row["value"],
+            }
+        )
+
+    table = h.build_table(
+        rows,
+        [
+            ("year", "Year"),
+            ("transaction_type", "Transaction type"),
+            ("currency", "Currency"),
+            ("total", "Total"),
+        ],
+        formatters={
+            "transaction_type": h.transaction_type_label,
+            "total": h.format_amount,
+        },
+    )
+
+    summary = f"Found {len(rows)} annual transaction total(s)."
+    return h.text_result(summary, source_url=xml_source(), table=table)
 
 
 def activity_transactions(

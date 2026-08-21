@@ -52,6 +52,8 @@ def _register_iati_tools(mcp):  # noqa: C901
             "Which IATI activities have Brazil as their recipient country?",
             "Which sectors are present in this IATI file?",
             "Show the transactions for activity XI-IATI-IADB-BR-L1231",
+            "How much was committed and disbursed each year?",
+            "Show annual commitments and disbursements from 2022 to 2024.",
         ],
     )
 
@@ -291,6 +293,42 @@ def _register_iati_tools(mcp):  # noqa: C901
         )
     )
     mcp.tool()(activity_transactions)
+
+    def transaction_totals_by_year(
+        year_from: int | None = None,
+        year_to: int | None = None,
+    ) -> DataToolOutput:
+        return activities.transaction_totals_by_year(
+            year_from=year_from,
+            year_to=year_to,
+        )
+
+    transaction_totals_by_year.__doc__ = (
+        """Group commitments and disbursements by year and currency.
+
+        Only commitment and disbursement transactions are included. Amounts
+        with different currencies are always reported separately.
+
+        Args:
+            year_from: Optional first year to include.
+            year_to: Optional last year to include.
+
+        Returns:
+            A chronological table containing year, transaction type, currency
+            and total amount.
+
+        Relevant IATI terms:
+        """
+        + glossary_text(
+            "transaction",
+            "transaction type",
+            "transaction value",
+            "commitment",
+            "disbursement",
+            "default currency",
+        )
+    )
+    mcp.tool()(transaction_totals_by_year)
 
     @mcp.tool()
     def define_term(term: str) -> DataToolOutput:

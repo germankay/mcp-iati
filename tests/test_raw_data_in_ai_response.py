@@ -112,6 +112,11 @@ DATA_TOOLS = [
         queries.activity_transactions,
         {"iati_identifier": "IATI-001"},
     ),
+    (
+        "transaction_totals_by_year",
+        queries.transaction_totals_by_year,
+        {},
+    ),
 ]
 
 
