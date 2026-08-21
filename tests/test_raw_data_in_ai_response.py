@@ -117,6 +117,11 @@ DATA_TOOLS = [
         queries.transaction_totals_by_year,
         {},
     ),
+    (
+        "transaction_totals_by_organisation",
+        queries.transaction_totals_by_organisation,
+        {},
+    ),
 ]
 
 

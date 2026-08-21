@@ -28,6 +28,10 @@ Available tools:
   commitment and disbursement totals by year, transaction type and currency,
   while ignoring invalid dates/values and using the activity default currency
   when a transaction currency is missing.
+- `transaction_totals_by_organisation(limit=50)`: group commitments and
+  disbursements by reporting organisation, keeping transaction types and
+  currencies separate and clarifying that the reporting organisation is the
+  publisher of the activity data, not necessarily the funder or implementer.
 - `define_term(term)`: explain an IATI term using the central glossary.
 
 **Guiding principle:** these tools only use generic IATI standard fields

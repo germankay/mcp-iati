@@ -53,6 +53,7 @@ def _register_iati_tools(mcp):  # noqa: C901
             "Which sectors are present in this IATI file?",
             "Show the transactions for activity XI-IATI-IADB-BR-L1231",
             "How much was committed and disbursed each year?",
+            "How much was committed and disbursed by each reporting organisation?",
             "Show annual commitments and disbursements from 2022 to 2024.",
         ],
     )
@@ -329,6 +330,40 @@ def _register_iati_tools(mcp):  # noqa: C901
         )
     )
     mcp.tool()(transaction_totals_by_year)
+
+    def transaction_totals_by_organisation(
+        limit: int = 50,
+    ) -> DataToolOutput:
+        return activities.transaction_totals_by_organisation(limit=limit)
+
+    transaction_totals_by_organisation.__doc__ = (
+        """Group commitments and disbursements by reporting organisation.
+
+        Amounts with different currencies and transaction types are reported
+        separately. The reporting organisation publishes the activity data and
+        is not necessarily the organisation funding or implementing the
+        activity.
+
+        Args:
+            limit: Maximum number of grouped rows to return. Default: 50.
+
+        Returns:
+            A table containing the organisation reference and name,
+            transaction type, currency and total amount.
+
+        Relevant IATI terms:
+        """
+        + glossary_text(
+            "reporting organisation",
+            "transaction",
+            "transaction type",
+            "transaction value",
+            "commitment",
+            "disbursement",
+            "default currency",
+        )
+    )
+    mcp.tool()(transaction_totals_by_organisation)
 
     @mcp.tool()
     def define_term(term: str) -> DataToolOutput:

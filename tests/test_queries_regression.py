@@ -383,3 +383,116 @@ def test_activity_transactions_rejects_unknown_activity(seed_cache):
     )
     assert "table" not in result.structuredContent
     assert result.structuredContent["sources"] == [seed_cache.source]
+
+
+def test_transaction_totals_by_organisation_groups_by_org_type_and_currency(
+    seed_cache,
+    monkeypatch,
+):
+    activities = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "reporting_org_name": "Development Bank",
+            "reporting_org_ref": "ORG-001",
+            "default_currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "reporting_org_name": "",
+            "reporting_org_ref": "ORG-002",
+            "default_currency": "EUR",
+        },
+        {
+            "activity_identifier": "IATI-003",
+            "reporting_org_name": "",
+            "reporting_org_ref": "",
+            "default_currency": "USD",
+        },
+    ])
+    transactions = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 1500.0,
+            "currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 100.0,
+            "currency": "",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 200.0,
+            "currency": "EUR",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "3",
+            "value": 750.0,
+            "currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "transaction_type": "2",
+            "value": 300.0,
+            "currency": "",
+        },
+        {
+            "activity_identifier": "IATI-003",
+            "transaction_type": "2",
+            "value": 500.0,
+            "currency": "",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "4",
+            "value": 999.0,
+            "currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": "not-a-number",
+            "currency": "USD",
+        },
+    ])
+    data._cache["dataframe:activities"] = activities
+    data._cache["dataframe:transactions"] = transactions
+
+    result = queries.transaction_totals_by_organisation()
+
+    assert result.structuredContent["table"] == [
+        [
+            "Organisation reference",
+            "Reporting organisation",
+            "Transaction type",
+            "Currency",
+            "Total",
+        ],
+        ["ORG-001", "Development Bank", "Out Commitment", "EUR", "200.00"],
+        ["ORG-001", "Development Bank", "Out Commitment", "USD", "1,600.00"],
+        ["ORG-001", "Development Bank", "Disbursement", "USD", "750.00"],
+        ["ORG-002", "ORG-002", "Out Commitment", "EUR", "300.00"],
+        ["", "Unknown reporting organisation", "Out Commitment", "USD", "500.00"],
+    ]
+    assert result.structuredContent["sources"] == [seed_cache.source]
+
+    text = result.content[0].text
+    assert "Found 5 organisation transaction total(s)." in text
+    assert "ORG-001 | Development Bank | Out Commitment | USD | 1,600.00" in text
+    assert "ORG-002 | ORG-002 | Out Commitment | EUR | 300.00" in text
+    assert "Unknown reporting organisation" in text
+    assert "This does not necessarily imply" in text
+
+
+def test_transaction_totals_by_organisation_rejects_invalid_limit(seed_cache):
+    result = queries.transaction_totals_by_organisation(limit=0)
+
+    assert result.content[0].text == (
+        "The result limit must be greater than zero."
+    )
+    assert "table" not in result.structuredContent
+    assert result.structuredContent["sources"] == [seed_cache.source]

@@ -580,6 +580,183 @@ def transaction_totals_by_year(
     return h.text_result(summary, source_url=xml_source(), table=table)
 
 
+def transaction_totals_by_organisation(limit: int = 50):
+    """Group commitments and disbursements by reporting organisation.
+
+    Amounts with different currencies and transaction types are reported
+    separately. The reporting organisation publishes the activity data and is
+    not necessarily the organisation funding or implementing the activity.
+
+    Args:
+        limit: Maximum number of grouped rows to return. Default: 50.
+
+    Returns:
+        A table containing the organisation reference and name, transaction
+        type, currency and total amount.
+    """
+    if limit < 1:
+        return h.empty_result(
+            "The result limit must be greater than zero.",
+            source_url=xml_source(),
+        )
+
+    activities = activities_df()[
+        [
+            "activity_identifier",
+            "reporting_org_ref",
+            "reporting_org_name",
+            "default_currency",
+        ]
+    ].copy()
+    activities = activities.drop_duplicates(subset=["activity_identifier"])
+    activities["reporting_org_ref"] = (
+        activities["reporting_org_ref"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    activities["reporting_org_name"] = (
+        activities["reporting_org_name"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    activities["default_currency"] = (
+        activities["default_currency"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+
+    transactions = transactions_df().copy()
+    if transactions.empty:
+        return h.empty_result(
+            "No transactions were found in the loaded IATI data.",
+            source_url=xml_source(),
+        )
+
+    allowed_types = {"2", "3"}
+    transactions = transactions[
+        transactions["transaction_type"].isin(allowed_types)
+    ].copy()
+    transactions["value"] = pd.to_numeric(transactions["value"], errors="coerce")
+    transactions = transactions[pd.notna(transactions["value"])].copy()
+
+    if transactions.empty:
+        return h.empty_result(
+            "No transaction totals were found for the requested organisation grouping.",
+            source_url=xml_source(),
+        )
+
+    transactions = transactions.merge(
+        activities,
+        on="activity_identifier",
+        how="left",
+    )
+
+    transactions["reporting_org_ref"] = (
+        transactions["reporting_org_ref"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    transactions["reporting_org_name"] = (
+        transactions["reporting_org_name"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    transactions["default_currency"] = (
+        transactions["default_currency"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+
+    transactions["display_org_name"] = transactions["reporting_org_name"].where(
+        transactions["reporting_org_name"] != "",
+        transactions["reporting_org_ref"],
+    )
+    transactions["display_org_name"] = transactions["display_org_name"].where(
+        transactions["display_org_name"] != "",
+        "Unknown reporting organisation",
+    )
+
+    transactions["currency"] = (
+        transactions["currency"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    transactions["currency"] = transactions["currency"].where(
+        transactions["currency"] != "",
+        transactions["default_currency"],
+    )
+    transactions["currency"] = transactions["currency"].fillna("")
+    transactions["currency"] = transactions["currency"].astype(str).str.strip()
+    transactions["currency"] = transactions["currency"].where(
+        transactions["currency"] != "",
+        "Unknown",
+    )
+
+    grouped = (
+        transactions.groupby(
+            [
+                "reporting_org_ref",
+                "display_org_name",
+                "transaction_type",
+                "currency",
+            ],
+            dropna=False,
+        )["value"]
+        .sum()
+        .reset_index()
+    )
+    grouped = grouped.sort_values(
+        ["display_org_name", "transaction_type", "currency"],
+        kind="mergesort",
+    )
+    shown = grouped.head(limit)
+
+    rows = [
+        {
+            "organisation_ref": row["reporting_org_ref"],
+            "organisation_name": row["display_org_name"],
+            "transaction_type": row["transaction_type"],
+            "currency": row["currency"],
+            "total": row["value"],
+        }
+        for _, row in shown.iterrows()
+    ]
+
+    table = h.build_table(
+        rows,
+        [
+            ("organisation_ref", "Organisation reference"),
+            ("organisation_name", "Reporting organisation"),
+            ("transaction_type", "Transaction type"),
+            ("currency", "Currency"),
+            ("total", "Total"),
+        ],
+        formatters={
+            "transaction_type": h.transaction_type_label,
+            "total": h.format_amount,
+        },
+    )
+
+    summary = f"Found {len(rows)} organisation transaction total(s)."
+    interpretation = (
+        "The amounts are associated with activities published by each "
+        "reporting organisation. This does not necessarily imply that the "
+        "organisation funded or implemented the funds."
+    )
+    return h.text_result(
+        f"{summary}\n\n{interpretation}",
+        source_url=xml_source(),
+        table=table,
+    )
+
+
 def activity_transactions(
     iati_identifier: str,
     limit: int = 50,
