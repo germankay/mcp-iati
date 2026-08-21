@@ -21,6 +21,7 @@ def test_register_tools_adds_expected_tools(fake_mcp):
         "activity_transactions",
         "transaction_totals_by_year",
         "transaction_totals_by_organisation",
+        "transaction_totals_by_sector",
         "transaction_totals_by_country",
         "top_activities_by_amount",
         "define_term",
@@ -51,6 +52,8 @@ def test_plugin_sample_questions_cover_main_use_cases(fake_mcp):
     assert "Show the transactions for activity XI-IATI-IADB-BR-L1231" in questions
     assert "How much was committed and disbursed each year?" in questions
     assert "How much was committed and disbursed by each reporting organisation?" in questions
+    assert "How much was committed by sector?" in questions
+    assert "How much was disbursed by sector in USD?" in questions
     assert "How much was committed and disbursed by recipient country?" in questions
     assert "Which activities have the highest commitment totals?" in questions
     assert "Which activities have the highest disbursement totals in USD?" in questions

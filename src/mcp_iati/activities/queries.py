@@ -771,6 +771,87 @@ def transaction_totals_by_organisation(limit: int = 50):
     )
 
 
+def _sector_allocations(
+    sectors: pd.DataFrame,
+    vocabulary: str | None = None,
+) -> pd.DataFrame:
+    """Return sector allocation percentages that total 100 per activity."""
+    sectors = sectors.copy()
+    for column in [
+        "activity_identifier",
+        "sector_code",
+        "sector_name",
+        "vocabulary",
+    ]:
+        sectors[column] = (
+            sectors[column]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+    sectors["percentage"] = pd.to_numeric(
+        sectors["percentage"],
+        errors="coerce",
+    )
+    if vocabulary is not None:
+        selected_vocabulary = str(vocabulary).strip()
+        sectors = sectors[
+            sectors["vocabulary"] == selected_vocabulary
+        ].copy()
+    allocation_rows = []
+    for (activity_identifier, vocabulary_code), group in sectors.groupby(
+        ["activity_identifier", "vocabulary"],
+        dropna=False,
+        sort=True,
+    ):
+        group = group.copy()
+        if len(group) == 1 and group["percentage"].isna().all():
+            group["percentage"] = 100.0
+        valid = group[
+            group["percentage"].notna()
+            & group["percentage"].between(0, 100)
+            & (group["percentage"] > 0)
+        ].copy()
+        valid_total = float(valid["percentage"].sum())
+        if valid_total > 100.000001:
+            allocation_rows.append({
+                "activity_identifier": activity_identifier,
+                "vocabulary": vocabulary_code or "Unknown",
+                "sector_code": "",
+                "sector_name": "Unallocated sector",
+                "allocation_percentage": 100.0,
+            })
+            continue
+        for row in valid.to_dict("records"):
+            sector_name = row["sector_name"] or row["sector_code"]
+            allocation_rows.append({
+                "activity_identifier": activity_identifier,
+                "vocabulary": vocabulary_code or "Unknown",
+                "sector_code": row["sector_code"],
+                "sector_name": sector_name or "Unknown sector",
+                "allocation_percentage": float(row["percentage"]),
+            })
+        remainder = 100.0 - valid_total
+        if remainder > 0.000001:
+            allocation_rows.append({
+                "activity_identifier": activity_identifier,
+                "vocabulary": vocabulary_code or "Unknown",
+                "sector_code": "",
+                "sector_name": "Unallocated sector",
+                "allocation_percentage": remainder,
+            })
+    return pd.DataFrame(
+        allocation_rows,
+        columns=[
+            "activity_identifier",
+            "vocabulary",
+            "sector_code",
+            "sector_name",
+            "allocation_percentage",
+        ],
+    )
+
+
 def transaction_totals_by_country(
     transaction_type: str = "2",
     currency: str | None = None,
@@ -965,6 +1046,227 @@ def transaction_totals_by_country(
     )
 
     summary = f"Found {len(rows)} country transaction total(s)."
+    return h.text_result(summary, source_url=xml_source(), table=table)
+
+
+def transaction_totals_by_sector(
+    transaction_type: str = "2",
+    currency: str | None = None,
+    vocabulary: str | None = None,
+    limit: int = 50,
+):
+    """Allocate commitments and disbursements across sectors.
+
+    Amounts are distributed using the published sector percentages. Different
+    vocabularies and currencies are reported separately.
+    """
+    if limit < 1:
+        return h.empty_result(
+            "The result limit must be greater than zero.",
+            source_url=xml_source(),
+        )
+
+    transaction_type_code = _transaction_type_code(transaction_type)
+    if transaction_type_code is None:
+        return h.empty_result(
+            "Unsupported transaction type. Use commitment, disbursement, "
+            "2 or 3.",
+            source_url=xml_source(),
+        )
+
+    selected_currency = ""
+    if currency is not None:
+        selected_currency = str(currency).strip().upper()
+        if not selected_currency:
+            return h.empty_result(
+                "Currency cannot be empty when provided.",
+                source_url=xml_source(),
+            )
+
+    transactions = transactions_df().copy()
+    transactions["transaction_type"] = (
+        transactions["transaction_type"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    transactions["value"] = pd.to_numeric(transactions["value"], errors="coerce")
+    transactions = transactions[
+        (transactions["transaction_type"] == transaction_type_code)
+        & transactions["value"].notna()
+    ].copy()
+
+    if transactions.empty:
+        return h.empty_result(
+            "No matching transactions were found in the loaded IATI data.",
+            source_url=xml_source(),
+        )
+
+    activities = activities_df()[["activity_identifier", "default_currency"]].copy()
+    activities = activities.drop_duplicates(subset=["activity_identifier"])
+    activities["default_currency"] = (
+        activities["default_currency"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    transactions = transactions.merge(
+        activities,
+        on="activity_identifier",
+        how="left",
+    )
+
+    transactions["currency"] = (
+        transactions["currency"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    transactions["currency"] = transactions["currency"].where(
+        transactions["currency"] != "",
+        transactions["default_currency"],
+    )
+    transactions["currency"] = transactions["currency"].fillna("")
+    transactions["currency"] = transactions["currency"].astype(str).str.strip()
+    transactions["currency"] = transactions["currency"].where(
+        transactions["currency"] != "",
+        "Unknown",
+    )
+
+    if selected_currency:
+        transactions = transactions[transactions["currency"] == selected_currency]
+
+    if transactions.empty:
+        return h.empty_result(
+            f"No transactions were found for currency '{selected_currency}'.",
+            source_url=xml_source(),
+        )
+
+    sectors = _sector_allocations(sectors_df(), vocabulary=vocabulary)
+    transaction_activity_ids = set(
+        transactions["activity_identifier"]
+        .dropna()
+        .astype(str)
+        .str.strip()
+    )
+
+    allocated_activity_ids = set(
+        sectors["activity_identifier"]
+        .dropna()
+        .astype(str)
+        .str.strip()
+    )
+
+    missing_activity_ids = sorted(
+        transaction_activity_ids - allocated_activity_ids
+    )
+
+    if missing_activity_ids:
+        fallback_vocabulary = (
+            str(vocabulary).strip()
+            if vocabulary is not None
+            else "Unknown"
+        )
+
+        missing_allocations = pd.DataFrame([
+            {
+                "activity_identifier": activity_identifier,
+                "vocabulary": fallback_vocabulary,
+                "sector_code": "",
+                "sector_name": "Unallocated sector",
+                "allocation_percentage": 100.0,
+            }
+            for activity_identifier in missing_activity_ids
+        ])
+
+        sectors = pd.concat(
+            [sectors, missing_allocations],
+            ignore_index=True,
+        )
+    if sectors.empty:
+        return h.empty_result(
+            "No sector allocations were found for the requested filters.",
+            source_url=xml_source(),
+        )
+
+    merged = transactions.merge(
+        sectors,
+        on="activity_identifier",
+        how="left",
+    )
+    merged["allocation_percentage"] = pd.to_numeric(
+        merged["allocation_percentage"],
+        errors="coerce",
+    )
+    merged = merged[merged["allocation_percentage"].notna()].copy()
+    merged["allocated_value"] = (
+        merged["value"] * merged["allocation_percentage"] / 100
+    )
+
+    grouped = (
+        merged.groupby(
+            [
+                "vocabulary",
+                "sector_code",
+                "sector_name",
+                "transaction_type",
+                "currency",
+            ],
+            dropna=False,
+        )["allocated_value"]
+        .sum()
+        .reset_index()
+    )
+    grouped = grouped.sort_values(
+        ["vocabulary", "currency", "allocated_value", "sector_name"],
+        ascending=[True, True, False, True],
+        kind="mergesort",
+    )
+    shown = (
+        grouped.groupby(
+            ["vocabulary", "currency"],
+            sort=False,
+            group_keys=False,
+        )
+        .head(limit)
+    )
+
+    rows = []
+    for _, row in shown.iterrows():
+        rows.append(
+            {
+                "vocabulary": row["vocabulary"],
+                "sector_code": row["sector_code"],
+                "sector_name": row["sector_name"],
+                "transaction_type": row["transaction_type"],
+                "currency": row["currency"],
+                "total": row["allocated_value"],
+            }
+        )
+
+    table = h.build_table(
+        rows,
+        [
+            ("vocabulary", "Vocabulary"),
+            ("sector_code", "Sector code"),
+            ("sector_name", "Sector"),
+            ("transaction_type", "Transaction type"),
+            ("currency", "Currency"),
+            ("total", "Allocated total"),
+        ],
+        formatters={
+            "transaction_type": h.transaction_type_label,
+            "total": h.format_amount,
+        },
+    )
+
+    summary = (
+        "Transaction amounts are allocated using the published sector "
+        "percentages. Currencies and sector vocabularies are reported "
+        "separately."
+    )
     return h.text_result(summary, source_url=xml_source(), table=table)
 
 

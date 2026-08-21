@@ -498,6 +498,234 @@ def test_transaction_totals_by_organisation_rejects_invalid_limit(seed_cache):
     assert result.structuredContent["sources"] == [seed_cache.source]
 
 
+def test_sector_allocations_over_100_become_unallocated():
+    sectors = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "sector_code": "111",
+            "sector_name": "Transport",
+            "vocabulary": "1",
+            "percentage": 70,
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "sector_code": "112",
+            "sector_name": "Health",
+            "vocabulary": "1",
+            "percentage": 50,
+        },
+    ])
+
+    allocations = queries._sector_allocations(sectors)
+
+    assert allocations.to_dict("records") == [{
+        "activity_identifier": "IATI-001",
+        "vocabulary": "1",
+        "sector_code": "",
+        "sector_name": "Unallocated sector",
+        "allocation_percentage": 100.0,
+    }]
+
+
+def test_transaction_totals_by_sector_keeps_activities_without_sectors(
+    seed_cache,
+):
+    data._cache["dataframe:activities"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "default_currency": "USD",
+        },
+    ])
+    data._cache["dataframe:transactions"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 1000.0,
+            "currency": "USD",
+        },
+    ])
+    data._cache["dataframe:sectors"] = pd.DataFrame(
+        columns=[
+            "activity_identifier",
+            "sector_code",
+            "sector_name",
+            "vocabulary",
+            "percentage",
+        ]
+    )
+
+    result = queries.transaction_totals_by_sector("commitment")
+    table = result.structuredContent["table"]
+
+    assert table[1] == [
+        "Unknown",
+        "",
+        "Unallocated sector",
+        "Out Commitment",
+        "USD",
+        "1,000.00",
+    ]
+
+
+def test_transaction_totals_by_sector_allocates_percentages_and_unallocated_share(
+    seed_cache,
+):
+    data._cache["dataframe:activities"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "default_currency": "USD",
+        },
+    ])
+    data._cache["dataframe:transactions"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 1000.0,
+            "currency": "USD",
+        },
+    ])
+    data._cache["dataframe:sectors"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "sector_code": "111",
+            "sector_name": "Transport",
+            "vocabulary": "1",
+            "percentage": 60,
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "sector_code": "112",
+            "sector_name": "Health",
+            "vocabulary": "1",
+            "percentage": 30,
+        },
+    ])
+
+    result = queries.transaction_totals_by_sector(transaction_type="commitment")
+    table = result.structuredContent["table"]
+
+    assert table[1][-1] == "600.00"
+    assert table[2][-1] == "300.00"
+    assert table[3][-1] == "100.00"
+    assert table[3][2] == "Unallocated sector"
+    assert "Transaction amounts are allocated using the published sector percentages." in _text(result)
+
+
+def test_transaction_totals_by_sector_treats_single_unpercentaged_sector_as_100(
+    seed_cache,
+):
+    data._cache["dataframe:activities"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "default_currency": "USD",
+        },
+    ])
+    data._cache["dataframe:transactions"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 1000.0,
+            "currency": "USD",
+        },
+    ])
+    data._cache["dataframe:sectors"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "sector_code": "111",
+            "sector_name": "Transport",
+            "vocabulary": "1",
+            "percentage": None,
+        },
+    ])
+
+    result = queries.transaction_totals_by_sector(transaction_type="commitment")
+
+    assert result.structuredContent["table"][1][-1] == "1,000.00"
+    assert result.structuredContent["table"][1][2] == "Transport"
+
+
+def test_transaction_totals_by_sector_separates_vocabularies_and_currencies(
+    seed_cache,
+):
+    data._cache["dataframe:activities"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "default_currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "default_currency": "EUR",
+        },
+    ])
+    data._cache["dataframe:transactions"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 1000.0,
+            "currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "transaction_type": "2",
+            "value": 500.0,
+            "currency": "EUR",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "3",
+            "value": 250.0,
+            "currency": "USD",
+        },
+    ])
+    data._cache["dataframe:sectors"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "sector_code": "111",
+            "sector_name": "Transport",
+            "vocabulary": "1",
+            "percentage": 100,
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "sector_code": "112",
+            "sector_name": "Health",
+            "vocabulary": "2",
+            "percentage": 100,
+        },
+    ])
+
+    result = queries.transaction_totals_by_sector(
+        transaction_type="commitment",
+        currency="USD",
+        vocabulary="1",
+    )
+    table = result.structuredContent["table"]
+
+    assert table[1][0] == "1"
+    assert table[1][4] == "USD"
+    assert table[1][5] == "1,000.00"
+
+
+def test_transaction_totals_by_sector_rejects_invalid_transaction_type(seed_cache):
+    result = queries.transaction_totals_by_sector(transaction_type="invalid")
+
+    assert result.content[0].text == (
+        "Unsupported transaction type. Use commitment, disbursement, 2 or 3."
+    )
+    assert "table" not in result.structuredContent
+    assert result.structuredContent["sources"] == [seed_cache.source]
+
+
+def test_transaction_totals_by_sector_rejects_invalid_limit(seed_cache):
+    result = queries.transaction_totals_by_sector(limit=0)
+
+    assert result.content[0].text == (
+        "The result limit must be greater than zero."
+    )
+    assert "table" not in result.structuredContent
+    assert result.structuredContent["sources"] == [seed_cache.source]
+
+
 def test_transaction_totals_by_country_groups_by_country_and_currency(
     seed_cache,
 ):

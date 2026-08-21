@@ -33,6 +33,7 @@ Available tools:
   currencies separate and clarifying that the reporting organisation is the
   publisher of the activity data, not necessarily the funder or implementer.
 - `transaction_totals_by_country(transaction_type="2", currency=None, limit=50)`: group commitments and disbursements by recipient country, keeping transaction types and currencies separate and using a clear fallback label when country details are missing.
+- `transaction_totals_by_sector(transaction_type="2", currency=None, vocabulary=None, limit=50)`: allocate commitment or disbursement totals across sectors using the published percentages, keeping vocabularies and currencies separate and adding an `Unallocated sector` bucket when percentages do not total 100%.
 - `top_activities_by_amount(transaction_type="2", currency=None, limit=10)`: 
   list activities with the highest commitment or disbursement totals, ranked
   independently for each currency.

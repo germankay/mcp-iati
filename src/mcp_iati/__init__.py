@@ -54,6 +54,8 @@ def _register_iati_tools(mcp):  # noqa: C901
             "Show the transactions for activity XI-IATI-IADB-BR-L1231",
             "How much was committed and disbursed each year?",
             "How much was committed and disbursed by each reporting organisation?",
+            "How much was committed by sector?",
+            "How much was disbursed by sector in USD?",
             "How much was committed and disbursed by recipient country?",
             "Which activities have the highest commitment totals?",
             "Which activities have the highest disbursement totals in USD?",
@@ -367,6 +369,52 @@ def _register_iati_tools(mcp):  # noqa: C901
         )
     )
     mcp.tool()(transaction_totals_by_organisation)
+
+    def transaction_totals_by_sector(
+        transaction_type: str = "2",
+        currency: str | None = None,
+        vocabulary: str | None = None,
+        limit: int = 50,
+    ) -> DataToolOutput:
+        return activities.transaction_totals_by_sector(
+            transaction_type=transaction_type,
+            currency=currency,
+            vocabulary=vocabulary,
+            limit=limit,
+        )
+
+    transaction_totals_by_sector.__doc__ = (
+        """Allocate commitments and disbursements across sectors.
+
+        Amounts are distributed using the published sector percentages.
+        Different vocabularies and currencies are reported separately.
+
+        Args:
+            transaction_type: Commitment or disbursement. Accepts commitment,
+                out commitment, disbursement, 2 or 3.
+            currency: Optional currency code, for example USD or EUR.
+            vocabulary: Optional sector vocabulary code, for example 1 or 2.
+            limit: Maximum number of grouped rows to return per vocabulary and
+                currency. Default: 50.
+
+        Returns:
+            A table containing the vocabulary, sector, transaction type,
+            currency and allocated total amount.
+
+        Relevant IATI terms:
+        """
+        + glossary_text(
+            "sector",
+            "vocabulary",
+            "transaction",
+            "transaction type",
+            "transaction value",
+            "commitment",
+            "disbursement",
+            "default currency",
+        )
+    )
+    mcp.tool()(transaction_totals_by_sector)
 
     def transaction_totals_by_country(
         transaction_type: str = "2",
