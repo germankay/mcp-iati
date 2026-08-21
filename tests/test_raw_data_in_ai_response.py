@@ -122,6 +122,11 @@ DATA_TOOLS = [
         queries.transaction_totals_by_organisation,
         {},
     ),
+    (
+        "top_activities_by_amount",
+        queries.top_activities_by_amount,
+        {"transaction_type": "commitment"},
+    ),
 ]
 
 

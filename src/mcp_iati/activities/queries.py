@@ -18,6 +18,20 @@ from mcp_iati.activities.data import (
 )
 
 
+_TRANSACTION_TYPE_FILTERS = {
+    "2": "2",
+    "commitment": "2",
+    "out commitment": "2",
+    "3": "3",
+    "disbursement": "3",
+}
+
+
+def _transaction_type_code(value: str) -> str | None:
+    """Normalize a supported analytical transaction-type filter."""
+    return _TRANSACTION_TYPE_FILTERS.get(str(value).strip().casefold())
+
+
 def search_activities(text: str, limit: int = 10):
     """Search IATI activities by a substring of their title."""
     df = activities_df()
@@ -749,6 +763,226 @@ def transaction_totals_by_organisation(limit: int = 50):
         "The amounts are associated with activities published by each "
         "reporting organisation. This does not necessarily imply that the "
         "organisation funded or implemented the funds."
+    )
+    return h.text_result(
+        f"{summary}\n\n{interpretation}",
+        source_url=xml_source(),
+        table=table,
+    )
+
+
+def top_activities_by_amount(
+    transaction_type: str = "2",
+    currency: str | None = None,
+    limit: int = 10,
+):
+    """Return activities with the highest transaction totals.
+
+    Rankings are calculated independently for each currency. Only commitments
+    and disbursements are supported.
+    """
+    if limit < 1:
+        return h.empty_result(
+            "The result limit must be greater than zero.",
+            source_url=xml_source(),
+        )
+
+    transaction_type_code = _transaction_type_code(transaction_type)
+    if transaction_type_code is None:
+        return h.empty_result(
+            "Unsupported transaction type. Use commitment, disbursement, "
+            "2 or 3.",
+            source_url=xml_source(),
+        )
+
+    selected_currency = ""
+    if currency is not None:
+        selected_currency = str(currency).strip().upper()
+        if not selected_currency:
+            return h.empty_result(
+                "Currency cannot be empty when provided.",
+                source_url=xml_source(),
+            )
+
+    transactions = transactions_df().copy()
+    transactions["transaction_type"] = (
+        transactions["transaction_type"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    transactions["value"] = pd.to_numeric(transactions["value"], errors="coerce")
+    transactions = transactions[
+        (transactions["transaction_type"] == transaction_type_code)
+        & transactions["value"].notna()
+    ].copy()
+
+    if transactions.empty:
+        return h.empty_result(
+            "No matching transactions were found in the loaded IATI data.",
+            source_url=xml_source(),
+        )
+
+    activity_columns = [
+        "activity_identifier",
+        "title",
+        "reporting_org_name",
+        "reporting_org_ref",
+        "recipient_country_code",
+        "recipient_country_name",
+        "default_currency",
+    ]
+    activities = (
+        activities_df()[activity_columns]
+        .drop_duplicates(subset=["activity_identifier"])
+        .copy()
+    )
+    for column in activity_columns:
+        activities[column] = (
+            activities[column]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+
+    transactions = transactions.merge(
+        activities,
+        on="activity_identifier",
+        how="left",
+    )
+
+    transactions["currency"] = (
+        transactions["currency"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    transactions["default_currency"] = (
+        transactions["default_currency"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    transactions["currency"] = transactions["currency"].where(
+        transactions["currency"] != "",
+        transactions["default_currency"],
+    )
+    transactions["currency"] = transactions["currency"].fillna("")
+    transactions["currency"] = transactions["currency"].astype(str).str.strip()
+    transactions["currency"] = transactions["currency"].where(
+        transactions["currency"] != "",
+        "Unknown",
+    )
+
+    if selected_currency:
+        transactions = transactions[transactions["currency"] == selected_currency]
+
+    if transactions.empty:
+        return h.empty_result(
+            f"No transactions were found for currency '{selected_currency}'.",
+            source_url=xml_source(),
+        )
+
+    transactions["reporting_org_name"] = (
+        transactions["reporting_org_name"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    transactions["reporting_org_ref"] = (
+        transactions["reporting_org_ref"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    transactions["display_org_name"] = transactions["reporting_org_name"].where(
+        transactions["reporting_org_name"] != "",
+        transactions["reporting_org_ref"],
+    )
+    transactions["display_org_name"] = transactions["display_org_name"].where(
+        transactions["display_org_name"] != "",
+        "Unknown reporting organisation",
+    )
+
+    transactions["recipient_country_name"] = (
+        transactions["recipient_country_name"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    transactions["recipient_country_code"] = (
+        transactions["recipient_country_code"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    transactions["display_country"] = transactions["recipient_country_name"].where(
+        transactions["recipient_country_name"] != "",
+        transactions["recipient_country_code"],
+    )
+    transactions["display_country"] = transactions["display_country"].where(
+        transactions["display_country"] != "",
+        "Unknown",
+    )
+
+    grouped = (
+        transactions.groupby(
+            [
+                "activity_identifier",
+                "title",
+                "display_org_name",
+                "display_country",
+                "currency",
+            ],
+            dropna=False,
+        )["value"]
+        .sum()
+        .reset_index()
+    )
+    grouped = grouped.sort_values(
+        ["currency", "value", "activity_identifier"],
+        ascending=[True, False, True],
+        kind="mergesort",
+    )
+    grouped = grouped.groupby("currency", group_keys=False).head(limit)
+
+    rows = []
+    for _, row in grouped.iterrows():
+        rows.append(
+            {
+                "activity_identifier": row["activity_identifier"],
+                "title": row["title"],
+                "organisation": row["display_org_name"],
+                "country": row["display_country"],
+                "transaction_type": transaction_type_code,
+                "currency": row["currency"],
+                "total": row["value"],
+            }
+        )
+
+    table = h.build_table(
+        rows,
+        [
+            ("activity_identifier", "IATI identifier"),
+            ("title", "Title"),
+            ("organisation", "Organisation"),
+            ("country", "Country"),
+            ("transaction_type", "Transaction type"),
+            ("currency", "Currency"),
+            ("total", "Total"),
+        ],
+        formatters={
+            "transaction_type": h.transaction_type_label,
+            "total": h.format_amount,
+        },
+    )
+
+    summary = f"Found {len(rows)} top activity amount(s)."
+    interpretation = (
+        "Commitments do not necessarily represent payments made."
     )
     return h.text_result(
         f"{summary}\n\n{interpretation}",

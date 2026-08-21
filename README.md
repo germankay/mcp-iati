@@ -32,6 +32,9 @@ Available tools:
   disbursements by reporting organisation, keeping transaction types and
   currencies separate and clarifying that the reporting organisation is the
   publisher of the activity data, not necessarily the funder or implementer.
+- `top_activities_by_amount(transaction_type="2", currency=None, limit=10)`: 
+  list activities with the highest commitment or disbursement totals, ranked
+  independently for each currency.
 - `define_term(term)`: explain an IATI term using the central glossary.
 
 **Guiding principle:** these tools only use generic IATI standard fields

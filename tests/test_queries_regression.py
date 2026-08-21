@@ -496,3 +496,309 @@ def test_transaction_totals_by_organisation_rejects_invalid_limit(seed_cache):
     )
     assert "table" not in result.structuredContent
     assert result.structuredContent["sources"] == [seed_cache.source]
+
+
+@pytest.mark.parametrize(
+    "transaction_type",
+    ["2", "commitment", "out commitment"],
+)
+def test_top_activities_accepts_commitment_aliases(
+    seed_cache,
+    transaction_type,
+):
+    result = queries.top_activities_by_amount(transaction_type)
+    table = result.structuredContent["table"]
+
+    assert table[0][-3:] == [
+        "Transaction type",
+        "Currency",
+        "Total",
+    ]
+    assert table[1][0] == "IATI-001"
+    assert table[1][-3:] == [
+        "Out Commitment",
+        "USD",
+        "1,500.00",
+    ]
+    assert result.structuredContent["sources"] == [seed_cache.source]
+
+
+@pytest.mark.parametrize(
+    "transaction_type",
+    ["3", "disbursement"],
+)
+def test_top_activities_accepts_disbursement_aliases(
+    seed_cache,
+    transaction_type,
+):
+    result = queries.top_activities_by_amount(transaction_type)
+
+    assert result.structuredContent["table"][1][-3:] == [
+        "Disbursement",
+        "USD",
+        "750.00",
+    ]
+
+
+def test_top_activities_keeps_currencies_separate_and_sorted(seed_cache):
+    data._cache["dataframe:activities"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "title": "Alpha",
+            "reporting_org_name": "Org A",
+            "reporting_org_ref": "ORG-A",
+            "recipient_country_name": "Argentina",
+            "recipient_country_code": "AR",
+            "default_currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "title": "Beta",
+            "reporting_org_name": "Org B",
+            "reporting_org_ref": "ORG-B",
+            "recipient_country_name": "Brazil",
+            "recipient_country_code": "BR",
+            "default_currency": "EUR",
+        },
+        {
+            "activity_identifier": "IATI-003",
+            "title": "Gamma",
+            "reporting_org_name": "Org C",
+            "reporting_org_ref": "ORG-C",
+            "recipient_country_name": "Chile",
+            "recipient_country_code": "CL",
+            "default_currency": "USD",
+        },
+    ])
+    data._cache["dataframe:transactions"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 1000.0,
+            "currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-003",
+            "transaction_type": "2",
+            "value": 500.0,
+            "currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "transaction_type": "2",
+            "value": 300.0,
+            "currency": "EUR",
+        },
+    ])
+
+    result = queries.top_activities_by_amount(transaction_type="commitment")
+    table = result.structuredContent["table"]
+
+    assert table[1][-3:] == ["Out Commitment", "EUR", "300.00"]
+    assert table[2][-3:] == ["Out Commitment", "USD", "1,000.00"]
+    assert table[3][-3:] == ["Out Commitment", "USD", "500.00"]
+
+
+def test_top_activities_filters_by_currency(seed_cache):
+    data._cache["dataframe:activities"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "title": "Alpha",
+            "reporting_org_name": "Org A",
+            "reporting_org_ref": "ORG-A",
+            "recipient_country_name": "Argentina",
+            "recipient_country_code": "AR",
+            "default_currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "title": "Beta",
+            "reporting_org_name": "Org B",
+            "reporting_org_ref": "ORG-B",
+            "recipient_country_name": "Brazil",
+            "recipient_country_code": "BR",
+            "default_currency": "EUR",
+        },
+    ])
+    data._cache["dataframe:transactions"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 1000.0,
+            "currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "transaction_type": "2",
+            "value": 300.0,
+            "currency": "EUR",
+        },
+    ])
+
+    result = queries.top_activities_by_amount(
+        transaction_type="commitment",
+        currency="USD",
+    )
+
+    assert all(row[-2] == "USD" for row in result.structuredContent["table"][1:])
+    assert result.structuredContent["table"][1][0] == "IATI-001"
+
+
+def test_top_activities_uses_default_currency_when_missing(seed_cache):
+    data._cache["dataframe:activities"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "title": "Alpha",
+            "reporting_org_name": "Org A",
+            "reporting_org_ref": "ORG-A",
+            "recipient_country_name": "Argentina",
+            "recipient_country_code": "AR",
+            "default_currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "title": "Beta",
+            "reporting_org_name": "Org B",
+            "reporting_org_ref": "ORG-B",
+            "recipient_country_name": "Brazil",
+            "recipient_country_code": "BR",
+            "default_currency": "EUR",
+        },
+    ])
+    data._cache["dataframe:transactions"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-002",
+            "transaction_type": "2",
+            "value": 300.0,
+            "currency": "",
+        },
+    ])
+
+    result = queries.top_activities_by_amount(
+        transaction_type="commitment",
+        currency="EUR",
+    )
+
+    assert result.structuredContent["table"][1][0] == "IATI-002"
+    assert result.structuredContent["table"][1][-2] == "EUR"
+
+
+def test_top_activities_rejects_invalid_transaction_type(seed_cache):
+    result = queries.top_activities_by_amount(transaction_type="invalid")
+
+    assert result.content[0].text == (
+        "Unsupported transaction type. Use commitment, disbursement, 2 or 3."
+    )
+    assert "table" not in result.structuredContent
+    assert result.structuredContent["sources"] == [seed_cache.source]
+
+
+def test_top_activities_rejects_invalid_limit(seed_cache):
+    result = queries.top_activities_by_amount(limit=0)
+
+    assert result.content[0].text == (
+        "The result limit must be greater than zero."
+    )
+    assert "table" not in result.structuredContent
+    assert result.structuredContent["sources"] == [seed_cache.source]
+
+
+def test_top_activities_uses_org_ref_and_unknown_fallbacks(seed_cache):
+    data._cache["dataframe:activities"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "title": "Alpha",
+            "reporting_org_name": "Development Bank",
+            "reporting_org_ref": "ORG-001",
+            "recipient_country_name": "Argentina",
+            "recipient_country_code": "AR",
+            "default_currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "title": "Beta",
+            "reporting_org_name": "",
+            "reporting_org_ref": "ORG-002",
+            "recipient_country_name": "Brazil",
+            "recipient_country_code": "BR",
+            "default_currency": "EUR",
+        },
+        {
+            "activity_identifier": "IATI-003",
+            "title": "Gamma",
+            "reporting_org_name": "",
+            "reporting_org_ref": "",
+            "recipient_country_name": "",
+            "recipient_country_code": "",
+            "default_currency": "USD",
+        },
+    ])
+    data._cache["dataframe:transactions"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 1000.0,
+            "currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "transaction_type": "2",
+            "value": 300.0,
+            "currency": "EUR",
+        },
+        {
+            "activity_identifier": "IATI-003",
+            "transaction_type": "2",
+            "value": 500.0,
+            "currency": "USD",
+        },
+    ])
+
+    result = queries.top_activities_by_amount(transaction_type="commitment")
+
+    assert "Development Bank" in _text(result)
+    assert "ORG-002" in _text(result)
+    assert "Unknown reporting organisation" in _text(result)
+
+
+def test_top_activities_uses_country_code_fallback(seed_cache):
+    data._cache["dataframe:activities"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "title": "Alpha",
+            "reporting_org_name": "Development Bank",
+            "reporting_org_ref": "ORG-001",
+            "recipient_country_name": "",
+            "recipient_country_code": "BR",
+            "default_currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "title": "Beta",
+            "reporting_org_name": "Org B",
+            "reporting_org_ref": "ORG-B",
+            "recipient_country_name": "",
+            "recipient_country_code": "",
+            "default_currency": "EUR",
+        },
+    ])
+    data._cache["dataframe:transactions"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 1000.0,
+            "currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "transaction_type": "2",
+            "value": 300.0,
+            "currency": "EUR",
+        },
+    ])
+
+    result = queries.top_activities_by_amount(transaction_type="commitment")
+
+    assert "BR" in _text(result)
+    assert "Unknown" in _text(result)
+    assert "nan" not in _text(result).lower()

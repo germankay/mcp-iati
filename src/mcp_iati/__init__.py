@@ -54,6 +54,8 @@ def _register_iati_tools(mcp):  # noqa: C901
             "Show the transactions for activity XI-IATI-IADB-BR-L1231",
             "How much was committed and disbursed each year?",
             "How much was committed and disbursed by each reporting organisation?",
+            "Which activities have the highest commitment totals?",
+            "Which activities have the highest disbursement totals in USD?",
             "Show annual commitments and disbursements from 2022 to 2024.",
         ],
     )
@@ -364,6 +366,51 @@ def _register_iati_tools(mcp):  # noqa: C901
         )
     )
     mcp.tool()(transaction_totals_by_organisation)
+
+    def top_activities_by_amount(
+        transaction_type: str = "2",
+        currency: str | None = None,
+        limit: int = 10,
+    ) -> DataToolOutput:
+        return activities.top_activities_by_amount(
+            transaction_type=transaction_type,
+            currency=currency,
+            limit=limit,
+        )
+
+    top_activities_by_amount.__doc__ = (
+        """List activities with the highest commitment or disbursement totals.
+
+        Rankings are calculated independently for each currency, avoiding
+        comparisons between amounts expressed in different currencies.
+
+        Args:
+            transaction_type: Commitment or disbursement. Accepts commitment,
+                out commitment, disbursement, 2 or 3.
+            currency: Optional currency code, for example USD or EUR.
+            limit: Maximum results to return per currency. Default: 10.
+
+        Returns:
+            A table containing activity identifiers, titles, reporting
+            organisations, recipient countries, transaction type, currency
+            and total amount.
+
+        Relevant IATI terms:
+        """
+        + glossary_text(
+            "IATI activity",
+            "IATI identifier",
+            "reporting organisation",
+            "recipient country or region",
+            "transaction",
+            "transaction type",
+            "transaction value",
+            "commitment",
+            "disbursement",
+            "default currency",
+        )
+    )
+    mcp.tool()(top_activities_by_amount)
 
     @mcp.tool()
     def define_term(term: str) -> DataToolOutput:
