@@ -108,12 +108,28 @@ def test_activity_summary_preserves_details_totals_and_currency(seed_cache):
         result,
         seed_cache.source,
     )
+    assert "=== Query details ===" in text
+    assert "Total results: 1" in text
+    assert "Records shown: 1" in text
+    assert (
+        "Applied filters: iati_identifier=IATI-001"
+        in text
+    )
+    assert "Applied limit:" not in text
 
 
 def test_activity_summary_falls_back_to_org_ref(seed_cache):
     result = queries.activity_summary("IATI-002")
 
     assert "Reporting organisation: ORG-002" in _text(result)
+    text = _text(result)
+
+    assert "Total results: 1" in text
+    assert "Records shown: 1" in text
+    assert (
+        "Applied filters: iati_identifier=IATI-002"
+        in text
+    )
 
 
 def test_activity_summary_preserves_not_found_response(seed_cache):
@@ -127,6 +143,7 @@ def test_activity_summary_preserves_not_found_response(seed_cache):
         result,
         seed_cache.source,
     )
+    assert "=== Query details ===" not in _text(result)
 
 
 def test_tools_use_preloaded_dataframes_without_preparing_data(

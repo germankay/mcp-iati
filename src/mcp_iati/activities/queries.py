@@ -177,6 +177,9 @@ def activity_summary(iati_identifier: str):
         source_url=xml_source(),
         table=table,
         tool_name=tool_name,
+        total=1,
+        shown=1,
+        filters={"iati_identifier": iati_identifier},
     )
 
 
