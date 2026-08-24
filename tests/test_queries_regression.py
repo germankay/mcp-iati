@@ -740,6 +740,31 @@ def test_transaction_totals_by_organisation_groups_by_org_type_and_currency(
     assert "ORG-002 | ORG-002 | Out Commitment | EUR | 300.00" in text
     assert "Unknown reporting organisation" in text
     assert "This does not necessarily imply" in text
+    assert "=== Query details ===" in text
+    assert "Total results: 5" in text
+    assert "Records shown: 5" in text
+    assert "Applied filters:" not in text
+    assert "Applied limit: 50" in text
+
+
+def test_transaction_totals_by_organisation_reports_applied_limit(
+    seed_cache,
+):
+    result = queries.transaction_totals_by_organisation(limit=1)
+    text = _text(result)
+
+    assert "Records shown: 1" in text
+    assert "Applied limit: 1" in text
+    assert len(result.structuredContent["table"]) == 2
+
+    total_line = next(
+        line
+        for line in text.splitlines()
+        if line.startswith("Total results:")
+    )
+    total = int(total_line.removeprefix("Total results:").strip())
+
+    assert total >= 1
 
 
 def test_transaction_totals_by_organisation_rejects_invalid_limit(seed_cache):
@@ -753,6 +778,7 @@ def test_transaction_totals_by_organisation_rejects_invalid_limit(seed_cache):
         result,
         seed_cache.source,
     )
+    assert "=== Query details ===" not in _text(result)
 
 
 def test_sector_allocations_over_100_become_unallocated():

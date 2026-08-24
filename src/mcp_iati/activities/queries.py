@@ -804,6 +804,7 @@ def transaction_totals_by_organisation(limit: int = 50):
         ["display_org_name", "transaction_type", "currency"],
         kind="mergesort",
     )
+    total = len(grouped)
     shown = grouped.head(limit)
 
     rows = [
@@ -832,7 +833,7 @@ def transaction_totals_by_organisation(limit: int = 50):
         },
     )
 
-    summary = f"Found {len(rows)} organisation transaction total(s)."
+    summary = f"Found {total} organisation transaction total(s)."
     interpretation = (
         "The amounts are associated with activities published by each "
         "reporting organisation. This does not necessarily imply that the "
@@ -843,6 +844,9 @@ def transaction_totals_by_organisation(limit: int = 50):
         source_url=xml_source(),
         table=table,
         tool_name=tool_name,
+        total=total,
+        shown=len(rows),
+        limit=limit,
     )
 
 
