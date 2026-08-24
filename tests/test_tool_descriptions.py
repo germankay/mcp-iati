@@ -3,7 +3,13 @@ Plugin registration: expected tools, glossary in the instructions and the
 `no_tool_disponible` fallback message (uses `fake_mcp` from conftest.py).
 """
 
+import pytest
+
 from mcp_iati import register_tools
+from mcp_iati.glossary import (
+    TOOL_GLOSSARY_TERMS,
+    tool_glossary_text,
+)
 
 
 def test_register_tools_adds_expected_tools(fake_mcp):
@@ -28,15 +34,15 @@ def test_register_tools_adds_expected_tools(fake_mcp):
     ]
 
 
-def test_plugin_instructions_include_full_glossary(fake_mcp):
+def test_plugin_instructions_request_only_relevant_terms(fake_mcp):
     register_tools(fake_mcp)
 
-    assert fake_mcp.plugin_info is not None
     instructions = fake_mcp.plugin_info["instructions"]
-    assert "IATI glossary:\n" in instructions
-    assert "IATI activity" in instructions
-    assert "commitment" in instructions
-    assert "disbursement" in instructions
+
+    assert "only the IATI terms relevant" in instructions
+    assert "do not add unrelated glossary entries" in instructions
+    assert "call define_term" in instructions
+    assert "IATI glossary:\n" not in instructions
 
 
 def test_plugin_sample_questions_cover_main_use_cases(fake_mcp):
@@ -59,6 +65,7 @@ def test_plugin_sample_questions_cover_main_use_cases(fake_mcp):
     assert "Which activities have the highest disbursement totals in USD?" in questions
     assert "Show annual commitments and disbursements from 2022 to 2024." in questions
 
+
 def test_no_tool_disponible_returns_clear_fallback_message(fake_mcp):
     register_tools(fake_mcp)
 
@@ -68,3 +75,26 @@ def test_no_tool_disponible_returns_clear_fallback_message(fake_mcp):
     text = result.content[0].text
     assert "only answers questions about the loaded IATI activities" in text
     assert "Reason: not a question about IATI activities." in text
+
+@pytest.mark.parametrize(
+    "tool_name",
+    TOOL_GLOSSARY_TERMS,
+)
+def test_tool_descriptions_use_central_glossary(fake_mcp, tool_name):
+    register_tools(fake_mcp)
+
+    description = fake_mcp.tools[tool_name].__doc__
+    expected = tool_glossary_text(tool_name)
+
+    assert expected
+    assert expected in description
+
+def test_tool_description_excludes_unrelated_terms(fake_mcp):
+    register_tools(fake_mcp)
+
+    description = fake_mcp.tools["list_sectors"].__doc__
+
+    assert "Sector:" in description
+    assert "Vocabulary:" in description
+    assert "Commitment:" not in description
+    assert "Disbursement:" not in description

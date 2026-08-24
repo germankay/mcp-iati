@@ -34,6 +34,7 @@ def _transaction_type_code(value: str) -> str | None:
 
 def search_activities(text: str, limit: int = 10):
     """Search IATI activities by a substring of their title."""
+    tool_name = "search_activities"
     df = activities_df()
     matches = df[df["title"].str.contains(text, case=False, na=False)].head(limit)
 
@@ -54,11 +55,17 @@ def search_activities(text: str, limit: int = 10):
         formatters={"activity_status": h.activity_status_label},
     )
     summary = f"Found {len(matches)} IATI activity(ies) matching '{text}'."
-    return h.text_result(summary, source_url=xml_source(), table=table)
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+        tool_name=tool_name,
+    )
 
 
 def list_activity_statuses():
     """List the activity statuses present in the configured IATI data."""
+    tool_name = "list_activity_statuses"
     activities = activities_df()
 
     counts = (
@@ -102,11 +109,13 @@ def list_activity_statuses():
         summary,
         source_url=xml_source(),
         table=table,
+        tool_name=tool_name,
     )
 
 
 def activity_summary(iati_identifier: str):
     """Return title, status and total committed/disbursed amounts for one IATI activity."""
+    tool_name = "activity_summary"
     activities = activities_df()
     activity = activities[activities["activity_identifier"] == iati_identifier]
 
@@ -135,11 +144,17 @@ def activity_summary(iati_identifier: str):
     for code, total in totals.items():
         table.append([h.transaction_type_label(code), h.format_amount(total), currency])
 
-    return h.text_result("\n".join(lines), source_url=xml_source(), table=table)
+    return h.text_result(
+        "\n".join(lines),
+        source_url=xml_source(),
+        table=table,
+        tool_name=tool_name,
+    )
 
 
 def list_reporting_organisations():
     """List reporting organisations present in the configured IATI data."""
+    tool_name = "list_reporting_organisations"
     activities = activities_df()
 
     organisations = activities[
@@ -215,11 +230,13 @@ def list_reporting_organisations():
         summary,
         source_url=xml_source(),
         table=table,
+        tool_name=tool_name,
     )
 
 
 def list_recipient_countries():
     """List recipient countries present in the configured IATI data."""
+    tool_name = "list_recipient_countries"
     activities = activities_df()
 
     countries = activities[
@@ -293,6 +310,7 @@ def list_recipient_countries():
         summary,
         source_url=xml_source(),
         table=table,
+        tool_name=tool_name,
     )
 
 def filter_activities_by_country(
@@ -300,6 +318,7 @@ def filter_activities_by_country(
     limit: int = 10,
 ):
     """Filter IATI activities by recipient country code or name."""
+    tool_name = "filter_activities_by_country"
     country = country.strip()
 
     if not country:
@@ -380,11 +399,13 @@ def filter_activities_by_country(
         summary,
         source_url=xml_source(),
         table=table,
+        tool_name=tool_name,
     )
 
 
 def list_sectors(limit: int = 100):
     """List sectors present in the configured IATI data."""
+    tool_name = "list_sectors"
     if limit < 1:
         return h.empty_result(
             "The result limit must be greater than zero.",
@@ -460,6 +481,7 @@ def list_sectors(limit: int = 100):
         summary,
         source_url=xml_source(),
         table=table,
+        tool_name=tool_name,
     )
 
 
@@ -480,6 +502,7 @@ def transaction_totals_by_year(
         A chronological table containing year, transaction type, currency and
         total amount.
     """
+    tool_name = "transaction_totals_by_year"
     if year_from is not None and year_to is not None and year_from > year_to:
         return h.empty_result(
             "The year_from value cannot be greater than year_to.",
@@ -591,7 +614,12 @@ def transaction_totals_by_year(
     )
 
     summary = f"Found {len(rows)} annual transaction total(s)."
-    return h.text_result(summary, source_url=xml_source(), table=table)
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+        tool_name=tool_name,
+    )
 
 
 def transaction_totals_by_organisation(limit: int = 50):
@@ -608,6 +636,7 @@ def transaction_totals_by_organisation(limit: int = 50):
         A table containing the organisation reference and name, transaction
         type, currency and total amount.
     """
+    tool_name = "transaction_totals_by_organisation"
     if limit < 1:
         return h.empty_result(
             "The result limit must be greater than zero.",
@@ -768,6 +797,7 @@ def transaction_totals_by_organisation(limit: int = 50):
         f"{summary}\n\n{interpretation}",
         source_url=xml_source(),
         table=table,
+        tool_name=tool_name,
     )
 
 
@@ -863,6 +893,7 @@ def transaction_totals_by_country(
     separately. Missing country names fall back to the country code, and
     missing country data falls back to "Unknown recipient country".
     """
+    tool_name = "transaction_totals_by_country"
     if limit < 1:
         return h.empty_result(
             "The result limit must be greater than zero.",
@@ -884,6 +915,7 @@ def transaction_totals_by_country(
             return h.empty_result(
                 "Currency cannot be empty when provided.",
                 source_url=xml_source(),
+                tool_name=tool_name,
             )
 
     activities = activities_df()[
@@ -1046,7 +1078,12 @@ def transaction_totals_by_country(
     )
 
     summary = f"Found {len(rows)} country transaction total(s)."
-    return h.text_result(summary, source_url=xml_source(), table=table)
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+        tool_name=tool_name,
+    )
 
 
 def transaction_totals_by_sector(
@@ -1060,6 +1097,7 @@ def transaction_totals_by_sector(
     Amounts are distributed using the published sector percentages. Different
     vocabularies and currencies are reported separately.
     """
+    tool_name = "transaction_totals_by_sector"
     if limit < 1:
         return h.empty_result(
             "The result limit must be greater than zero.",
@@ -1081,6 +1119,7 @@ def transaction_totals_by_sector(
             return h.empty_result(
                 "Currency cannot be empty when provided.",
                 source_url=xml_source(),
+                tool_name=tool_name,
             )
 
     transactions = transactions_df().copy()
@@ -1267,7 +1306,12 @@ def transaction_totals_by_sector(
         "percentages. Currencies and sector vocabularies are reported "
         "separately."
     )
-    return h.text_result(summary, source_url=xml_source(), table=table)
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+        tool_name=tool_name,
+    )
 
 
 def top_activities_by_amount(
@@ -1280,6 +1324,7 @@ def top_activities_by_amount(
     Rankings are calculated independently for each currency. Only commitments
     and disbursements are supported.
     """
+    tool_name = "top_activities_by_amount"
     if limit < 1:
         return h.empty_result(
             "The result limit must be greater than zero.",
@@ -1301,6 +1346,7 @@ def top_activities_by_amount(
             return h.empty_result(
                 "Currency cannot be empty when provided.",
                 source_url=xml_source(),
+                tool_name=tool_name,
             )
 
     transactions = transactions_df().copy()
@@ -1487,6 +1533,7 @@ def top_activities_by_amount(
         f"{summary}\n\n{interpretation}",
         source_url=xml_source(),
         table=table,
+        tool_name=tool_name,
     )
 
 
@@ -1495,6 +1542,7 @@ def activity_transactions(
     limit: int = 50,
 ):
     """List transactions associated with one IATI activity."""
+    tool_name = "activity_transactions"
     iati_identifier = iati_identifier.strip()
 
     if not iati_identifier:
@@ -1592,4 +1640,5 @@ def activity_transactions(
         summary,
         source_url=xml_source(),
         table=table,
+        tool_name=tool_name,
     )

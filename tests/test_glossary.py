@@ -14,6 +14,7 @@ from mcp_iati.glossary import (
     tool_glossary_terms,
     tool_glossary_text,
 )
+from mcp_iati.activities import queries
 
 
 # One representative set per area of the IATI 2.03 standard covered by the
@@ -170,3 +171,14 @@ def test_tool_glossary_text_only_contains_relevant_definitions():
 
 def test_tool_glossary_text_is_empty_for_unknown_tool():
     assert tool_glossary_text("unknown_tool") == ""
+
+def test_search_activities_empty_response_has_no_glossary(seed_cache):
+    result = queries.search_activities("not-present")
+
+    text = result.content[0].text
+
+    assert text.startswith("No IATI activities found")
+    assert "=== Relevant IATI terms ===" not in text
+    assert result.structuredContent["sources"] == [
+        seed_cache.source,
+    ]
