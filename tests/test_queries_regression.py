@@ -543,7 +543,68 @@ def test_activity_transactions_returns_chronological_rows_and_source(
 
     text = result.content[0].text
     assert "Found 3 transaction(s)" in text
-    assert "Showing 3 result(s) with limit 50." in text
+    assert "Total results: 3" in text
+    assert "Records shown: 3" in text
+    assert (
+        "Applied filters: iati_identifier=IATI-001"
+        in text
+    )
+    assert "Applied limit: 50" in text
+
+
+def test_activity_transactions_reports_truncated_results(
+    seed_cache,
+):
+    result = queries.activity_transactions(
+        "IATI-001",
+        limit=2,
+    )
+    text = _text(result)
+
+    assert "Found 3 transaction(s)" in text
+    assert "Total results: 3" in text
+    assert "Records shown: 2" in text
+    assert (
+        "Applied filters: iati_identifier=IATI-001"
+        in text
+    )
+    assert "Applied limit: 2" in text
+    assert len(result.structuredContent["table"]) == 3
+
+
+def test_activity_transactions_rejects_blank_identifier(
+    seed_cache,
+):
+    result = queries.activity_transactions("   ")
+
+    assert _text(result) == (
+        "An IATI activity identifier is required."
+    )
+    assert "table" not in result.structuredContent
+    assert "=== Query details ===" not in _text(result)
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
+
+
+def test_activity_transactions_rejects_invalid_limit(
+    seed_cache,
+):
+    result = queries.activity_transactions(
+        "IATI-001",
+        limit=0,
+    )
+
+    assert _text(result) == (
+        "The result limit must be greater than zero."
+    )
+    assert "table" not in result.structuredContent
+    assert "=== Query details ===" not in _text(result)
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
 
 
 def test_activity_transactions_rejects_unknown_activity(seed_cache):
@@ -557,6 +618,7 @@ def test_activity_transactions_rejects_unknown_activity(seed_cache):
         result,
         seed_cache.source,
     )
+    assert "=== Query details ===" not in _text(result)
 
 
 def test_transaction_totals_by_organisation_groups_by_org_type_and_currency(

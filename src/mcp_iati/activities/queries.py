@@ -1671,8 +1671,7 @@ def activity_transactions(
 
     summary = (
         f"Found {total} transaction(s) for {title} "
-        f"({iati_identifier}). Showing {len(shown)} result(s) "
-        f"with limit {limit}."
+        f"({iati_identifier})."
     )
 
     return h.text_result(
@@ -1680,4 +1679,8 @@ def activity_transactions(
         source_url=xml_source(),
         table=table,
         tool_name=tool_name,
+        total=total,
+        shown=len(shown),
+        filters={"iati_identifier": iati_identifier},
+        limit=limit,
     )
