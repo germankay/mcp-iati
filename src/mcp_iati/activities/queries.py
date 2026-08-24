@@ -658,6 +658,12 @@ def transaction_totals_by_year(
         source_url=xml_source(),
         table=table,
         tool_name=tool_name,
+        total=len(rows),
+        shown=len(rows),
+        filters={
+            "year_from": year_from,
+            "year_to": year_to,
+        },
     )
 
 

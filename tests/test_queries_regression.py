@@ -479,6 +479,11 @@ def test_transaction_totals_by_year_groups_by_year_type_and_currency(
     assert "2024 | Disbursement | USD | 750.00" in text
     assert "2024 | Out Commitment | EUR | 200.00" in text
     assert "2024 | Disbursement | EUR | 100.00" in text
+    assert "=== Query details ===" in text
+    assert "Total results: 5" in text
+    assert "Records shown: 5" in text
+    assert "Applied filters:" not in text
+    assert "Applied limit:" not in text
 
 
 def test_transaction_totals_by_year_applies_year_filters(seed_cache):
@@ -486,6 +491,15 @@ def test_transaction_totals_by_year_applies_year_filters(seed_cache):
 
     assert result.structuredContent["table"][-1] == [2024, "Disbursement", "USD", "750.00"]
     assert all(row[0] == 2024 for row in result.structuredContent["table"][1:])
+    text = _text(result)
+
+    assert "Total results: 2" in text
+    assert "Records shown: 2" in text
+    assert (
+        "Applied filters: year_from=2023, year_to=2024"
+        in text
+    )
+    assert "Applied limit:" not in text
 
 
 def test_transaction_totals_by_year_rejects_invalid_range(seed_cache):
@@ -499,6 +513,7 @@ def test_transaction_totals_by_year_rejects_invalid_range(seed_cache):
         result,
         seed_cache.source,
     )
+    assert "=== Query details ===" not in _text(result)
 
 
 def test_activity_transactions_returns_chronological_rows_and_source(
