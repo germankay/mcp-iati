@@ -25,15 +25,50 @@ def _assert_data_source_only(result, data_source):
 
 def test_search_activities_preserves_table_and_source(seed_cache):
     result = queries.search_activities("transport")
+    text = _text(result)
 
-    assert _text(result).startswith(
+    assert text.startswith(
         "Found 1 IATI activity(ies) matching 'transport'."
     )
+    assert "Total results: 1" in text
+    assert "Records shown: 1" in text
+    assert "Applied filters: title_contains=transport" in text
+    assert "Applied limit: 10" in text
+
     assert result.structuredContent["table"] == [
         ["IATI identifier", "Title", "Status"],
-        ["IATI-001", "Sustainable transport programme", "Implementation"],
+        [
+            "IATI-001",
+            "Sustainable transport programme",
+            "Implementation",
+        ],
     ]
     _assert_data_and_glossary_sources(
+        result,
+        seed_cache.source,
+    )
+
+
+def test_search_activities_reports_total_and_applied_limit(seed_cache):
+    result = queries.search_activities("t", limit=1)
+    text = _text(result)
+
+    assert "Found 2 IATI activity(ies) matching 't'." in text
+    assert "Total results: 2" in text
+    assert "Records shown: 1" in text
+    assert "Applied filters: title_contains=t" in text
+    assert "Applied limit: 1" in text
+    assert len(result.structuredContent["table"]) == 2
+
+
+def test_search_activities_rejects_invalid_limit(seed_cache):
+    result = queries.search_activities("transport", limit=0)
+
+    assert _text(result) == (
+        "The result limit must be greater than zero."
+    )
+    assert "table" not in result.structuredContent
+    _assert_data_source_only(
         result,
         seed_cache.source,
     )
@@ -141,6 +176,11 @@ def test_list_activity_statuses_returns_counts_and_source(seed_cache):
     assert "Found 2 activity status value(s) across 2 activities." in text
     assert "2 | Implementation | 1" in text
     assert "3 | Completion | 1" in text
+    assert "=== Query details ===" in text
+    assert "Total results: 2" in text
+    assert "Records shown: 2" in text
+    assert "Applied filters:" not in text
+    assert "Applied limit:" not in text
 
 
 def test_list_reporting_organisations_returns_counts_and_source(
@@ -163,6 +203,10 @@ def test_list_reporting_organisations_returns_counts_and_source(
     )
 
     text = result.content[0].text
+    assert "Total results: 2" in text
+    assert "Records shown: 2" in text
+    assert "Applied filters:" not in text
+    assert "Applied limit:" not in text
     assert "Found 2 reporting organisation(s) across 2 activities." in text
     assert "ORG-001 | Development Bank | 1" in text
     assert "ORG-002 | ORG-002 | 1" in text
@@ -185,6 +229,10 @@ def test_list_recipient_countries_returns_counts_and_source(
     )
 
     text = result.content[0].text
+    assert "Total results: 2" in text
+    assert "Records shown: 2" in text
+    assert "Applied filters:" not in text
+    assert "Applied limit:" not in text
     assert "Found 2 recipient country value(s) across 2 activities." in text
     assert "AR | Argentina | 1" in text
     assert "BR | Brazil | 1" in text
@@ -255,8 +303,22 @@ def test_list_sectors_returns_counts_and_source(seed_cache):
 
     text = result.content[0].text
     assert "Found 2 sector value(s)." in text
-    assert "Showing 2 result(s) with limit 100." in text
+    assert "Total results: 2" in text
+    assert "Records shown: 2" in text
+    assert "Applied filters:" not in text
+    assert "Applied limit: 100" in text
     assert "nan" not in text.lower()
+
+
+def test_list_sectors_reports_total_and_applied_limit(seed_cache):
+    result = queries.list_sectors(limit=1)
+    text = _text(result)
+
+    assert "Found 2 sector value(s)." in text
+    assert "Total results: 2" in text
+    assert "Records shown: 1" in text
+    assert "Applied limit: 1" in text
+    assert len(result.structuredContent["table"]) == 2
 
 
 def test_transaction_totals_by_year_groups_by_year_type_and_currency(

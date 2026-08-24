@@ -35,8 +35,21 @@ def _transaction_type_code(value: str) -> str | None:
 def search_activities(text: str, limit: int = 10):
     """Search IATI activities by a substring of their title."""
     tool_name = "search_activities"
+
+    if limit <= 0:
+        return h.empty_result(
+            "The result limit must be greater than zero.",
+            source_url=xml_source(),
+        )
+
     df = activities_df()
-    matches = df[df["title"].str.contains(text, case=False, na=False)].head(limit)
+    all_matches = df[
+        df["title"].str.contains(text, case=False, na=False)
+    ]
+
+    total = len(all_matches)
+    matches = all_matches.head(limit)
+    shown = len(matches)
 
     if matches.empty:
         return h.empty_result(
@@ -44,7 +57,10 @@ def search_activities(text: str, limit: int = 10):
             source_url=xml_source(),
         )
 
-    rows = matches[["activity_identifier", "title", "activity_status"]].copy()
+    rows = matches[
+        ["activity_identifier", "title", "activity_status"]
+    ].copy()
+
     table = h.build_table(
         rows.to_dict("records"),
         [
@@ -52,14 +68,24 @@ def search_activities(text: str, limit: int = 10):
             ("title", "Title"),
             ("activity_status", "Status"),
         ],
-        formatters={"activity_status": h.activity_status_label},
+        formatters={
+            "activity_status": h.activity_status_label,
+        },
     )
-    summary = f"Found {len(matches)} IATI activity(ies) matching '{text}'."
+
+    summary = (
+        f"Found {total} IATI activity(ies) matching '{text}'."
+    )
+
     return h.text_result(
         summary,
         source_url=xml_source(),
         table=table,
         tool_name=tool_name,
+        total=total,
+        shown=shown,
+        filters={"title_contains": text},
+        limit=limit,
     )
 
 
@@ -110,6 +136,8 @@ def list_activity_statuses():
         source_url=xml_source(),
         table=table,
         tool_name=tool_name,
+        total=len(rows),
+        shown=len(rows),
     )
 
 
@@ -231,6 +259,8 @@ def list_reporting_organisations():
         source_url=xml_source(),
         table=table,
         tool_name=tool_name,
+        total=len(rows),
+        shown=len(rows),
     )
 
 
@@ -311,6 +341,8 @@ def list_recipient_countries():
         source_url=xml_source(),
         table=table,
         tool_name=tool_name,
+        total=len(counts),
+        shown=len(counts),
     )
 
 def filter_activities_by_country(
@@ -472,16 +504,16 @@ def list_sectors(limit: int = 100):
         ],
     )
 
-    summary = (
-        f"Found {total} sector value(s). "
-        f"Showing {len(shown)} result(s) with limit {limit}."
-    )
+    summary = f"Found {total} sector value(s)."
 
     return h.text_result(
         summary,
         source_url=xml_source(),
         table=table,
         tool_name=tool_name,
+        total=total,
+        shown=len(shown),
+        limit=limit,
     )
 
 

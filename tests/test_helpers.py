@@ -80,3 +80,36 @@ def test_empty_result_does_not_include_glossary():
     assert result.structuredContent["sources"] == [
         "/data/example.xml",
     ]
+
+
+def test_text_result_includes_common_query_details():
+    result = h.text_result(
+        "Found matching IATI activities.",
+        source_url="/data/sample.xml",
+        total=25,
+        shown=10,
+        filters={
+            "country": "AR",
+            "currency": "USD",
+            "year_from": None,
+        },
+        limit=10,
+    )
+
+    response_text = result.content[0].text
+
+    assert "=== Query details ===" in response_text
+    assert "Total results: 25" in response_text
+    assert "Records shown: 10" in response_text
+    assert "Applied filters: country=AR, currency=USD" in response_text
+    assert "Applied limit: 10" in response_text
+    assert "year_from" not in response_text
+
+
+def test_text_result_omits_query_details_when_not_provided():
+    result = h.text_result(
+        "IATI response.",
+        source_url="/data/sample.xml",
+    )
+
+    assert "=== Query details ===" not in result.content[0].text

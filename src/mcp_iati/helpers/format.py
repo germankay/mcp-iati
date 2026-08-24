@@ -50,6 +50,43 @@ def _table_to_text(table):
         return ""
     return "\n".join(" | ".join(str(cell) for cell in row) for row in table)
 
+
+def _query_details_text(
+    total: int | None = None,
+    shown: int | None = None,
+    filters: Mapping[str, Any] | None = None,
+    limit: int | None = None,
+) -> str:
+    """Render the common metadata included in IATI query responses."""
+    details = []
+
+    if total is not None:
+        details.append(f"Total results: {total}")
+
+    if shown is not None:
+        details.append(f"Records shown: {shown}")
+
+    applied_filters = {
+        name: value
+        for name, value in (filters or {}).items()
+        if value is not None and value != ""
+    }
+    if applied_filters:
+        formatted_filters = ", ".join(
+            f"{name}={value}"
+            for name, value in applied_filters.items()
+        )
+        details.append(f"Applied filters: {formatted_filters}")
+
+    if limit is not None:
+        details.append(f"Applied limit: {limit}")
+
+    if not details:
+        return ""
+
+    return "=== Query details ===\n" + "\n".join(details)
+
+
 def _append_relevant_terms(body: str, tool_name: str | None) -> str:
     """Append only the IATI definitions relevant to the calling tool."""
     if not tool_name:
@@ -86,10 +123,14 @@ def _sources_with_iati_standard(
     return sources
 
 def text_result(
-    text: str,
+     text: str,
     source_url: str | list[str],
     table: list[list[Any]] | None = None,
     tool_name: str | None = None,
+    total: int | None = None,
+    shown: int | None = None,
+    filters: Mapping[str, Any] | None = None,
+    limit: int | None = None,
 ):
     """Build the standard IATI response.
 
@@ -99,7 +140,19 @@ def text_result(
     guardrail. `source_url` is explicit so this module stays independent
     from the data layer; queries pass `data.xml_source()`.
     """
-    body = _append_relevant_terms(text, tool_name)
+    body = text
+
+    query_details = _query_details_text(
+        total=total,
+        shown=shown,
+        filters=filters,
+        limit=limit,
+    )
+    if query_details:
+        body = f"{body}\n\n{query_details}"
+
+    body = _append_relevant_terms(body, tool_name)
+
     if table:
         body += (
             f"\n\n{ALREADY_TABLE}\n\n"
