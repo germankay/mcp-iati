@@ -892,7 +892,24 @@ def test_transaction_totals_by_sector_allocates_percentages_and_unallocated_shar
     assert table[3][-1] == "100.00"
     assert table[3][2] == "Unallocated sector"
     assert "Transaction amounts are allocated using the published sector percentages." in _text(result)
+    text = _text(result)
+    assert "Total results: 3" in text
+    assert "Records shown: 3" in text
+    assert "Applied filters: transaction_type=2" in text
+    assert "Applied limit: 50" in text
 
+    # Test that the limit is applied to the number of rows shown, but the total count is preserved.
+    limited_result = queries.transaction_totals_by_sector(
+        transaction_type="commitment",
+        limit=2,
+    )
+    limited_text = _text(limited_result)
+
+    assert "Total results: 3" in limited_text
+    assert "Records shown: 2" in limited_text
+    assert "Applied filters: transaction_type=2" in limited_text
+    assert "Applied limit: 2" in limited_text
+    assert len(limited_result.structuredContent["table"]) == 3
 
 def test_transaction_totals_by_sector_treats_single_unpercentaged_sector_as_100(
     seed_cache,
@@ -987,6 +1004,32 @@ def test_transaction_totals_by_sector_separates_vocabularies_and_currencies(
     assert table[1][0] == "1"
     assert table[1][4] == "USD"
     assert table[1][5] == "1,000.00"
+    text = _text(result)
+
+    assert "Total results: 1" in text
+    assert "Records shown: 1" in text
+    assert (
+        "Applied filters: transaction_type=2, "
+        "currency=USD, vocabulary=1"
+        in text
+    )
+    assert "Applied limit: 50" in text
+
+
+def test_transaction_totals_by_sector_rejects_blank_currency(
+    seed_cache,
+):
+    result = queries.transaction_totals_by_sector(currency="   ")
+
+    assert _text(result) == (
+        "Currency cannot be empty when provided."
+    )
+    assert "table" not in result.structuredContent
+    assert "=== Query details ===" not in _text(result)
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
 
 
 def test_transaction_totals_by_sector_rejects_invalid_transaction_type(seed_cache):

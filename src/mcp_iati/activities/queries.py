@@ -1168,7 +1168,6 @@ def transaction_totals_by_sector(
             return h.empty_result(
                 "Currency cannot be empty when provided.",
                 source_url=xml_source(),
-                tool_name=tool_name,
             )
 
     transactions = transactions_df().copy()
@@ -1312,6 +1311,7 @@ def transaction_totals_by_sector(
         ascending=[True, True, False, True],
         kind="mergesort",
     )
+    total = len(grouped)
     shown = (
         grouped.groupby(
             ["vocabulary", "currency"],
@@ -1360,6 +1360,14 @@ def transaction_totals_by_sector(
         source_url=xml_source(),
         table=table,
         tool_name=tool_name,
+        total=total,
+        shown=len(rows),
+        filters={
+            "transaction_type": transaction_type_code,
+            "currency": selected_currency or None,
+            "vocabulary": vocabulary,
+        },
+        limit=limit,
     )
 
 
