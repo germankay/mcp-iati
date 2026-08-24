@@ -424,7 +424,7 @@ def filter_activities_by_country(
 
     summary = (
         f"Found {total} IATI activity(ies) for recipient country "
-        f"'{country}'. Showing {len(shown)} result(s) with limit {limit}."
+        f"'{country}'."
     )
 
     return h.text_result(
@@ -432,6 +432,10 @@ def filter_activities_by_country(
         source_url=xml_source(),
         table=table,
         tool_name=tool_name,
+        total=total,
+        shown=len(shown),
+        filters={"recipient_country": country},
+        limit=limit,
     )
 
 

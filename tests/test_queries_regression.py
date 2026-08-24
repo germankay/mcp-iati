@@ -271,7 +271,46 @@ def test_filter_activities_by_country_accepts_code_and_name(
 
     text = result.content[0].text
     assert "Found 1 IATI activity(ies)" in text
-    assert "Showing 1 result(s) with limit 10." in text
+    assert "Total results: 1" in text
+    assert "Records shown: 1" in text
+    assert (
+        f"Applied filters: recipient_country={country}"
+        in text
+    )
+    assert "Applied limit: 10" in text
+
+
+def test_filter_activities_by_country_rejects_blank_country(
+    seed_cache,
+):
+    result = queries.filter_activities_by_country("   ")
+
+    assert _text(result) == (
+        "A recipient country code or name is required."
+    )
+    assert "table" not in result.structuredContent
+    assert "=== Query details ===" not in _text(result)
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
+
+
+def test_filter_activities_by_country_rejects_invalid_limit(
+    seed_cache,
+):
+    result = queries.filter_activities_by_country("AR", limit=0)
+
+    assert _text(result) == (
+        "The result limit must be greater than zero."
+    )
+    assert "table" not in result.structuredContent
+    assert "=== Query details ===" not in _text(result)
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
+
 
 def test_filter_activities_by_country_returns_clear_empty_result(
     seed_cache,
@@ -286,6 +325,7 @@ def test_filter_activities_by_country_returns_clear_empty_result(
         result,
         seed_cache.source,
     )
+    assert "=== Query details ===" not in _text(result)
 
 
 def test_list_sectors_returns_counts_and_source(seed_cache):
