@@ -1334,6 +1334,12 @@ def test_top_activities_keeps_currencies_separate_and_sorted(seed_cache):
     assert table[2][-3:] == ["Out Commitment", "USD", "1,000.00"]
     assert table[3][-3:] == ["Out Commitment", "USD", "500.00"]
 
+    text = _text(result)
+    assert "Total results: 3" in text
+    assert "Records shown: 3" in text
+    assert "Applied filters: transaction_type=2" in text
+    assert "Applied limit: 10" in text
+
 
 def test_top_activities_filters_by_currency(seed_cache):
     data._cache["dataframe:activities"] = pd.DataFrame([
@@ -1378,6 +1384,32 @@ def test_top_activities_filters_by_currency(seed_cache):
 
     assert all(row[-2] == "USD" for row in result.structuredContent["table"][1:])
     assert result.structuredContent["table"][1][0] == "IATI-001"
+    text = _text(result)
+    assert "Total results: 1" in text
+    assert "Records shown: 1" in text
+    assert (
+        "Applied filters: transaction_type=2, currency=USD"
+        in text
+    )
+    assert "Applied limit: 10" in text
+
+
+def test_top_activities_reports_applied_limit(seed_cache):
+    result = queries.top_activities_by_amount(
+        transaction_type="commitment",
+        currency="USD",
+        limit=1,
+    )
+    text = _text(result)
+
+    assert "Total results: 1" in text
+    assert "Records shown: 1" in text
+    assert (
+        "Applied filters: transaction_type=2, currency=USD"
+        in text
+    )
+    assert "Applied limit: 1" in text
+    assert len(result.structuredContent["table"]) == 2
 
 
 def test_top_activities_uses_default_currency_when_missing(seed_cache):

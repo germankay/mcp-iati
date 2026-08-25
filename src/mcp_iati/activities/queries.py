@@ -1413,7 +1413,6 @@ def top_activities_by_amount(
             return h.empty_result(
                 "Currency cannot be empty when provided.",
                 source_url=xml_source(),
-                tool_name=tool_name,
             )
 
     transactions = transactions_df().copy()
@@ -1559,6 +1558,7 @@ def top_activities_by_amount(
         ascending=[True, False, True],
         kind="mergesort",
     )
+    total_results = len(grouped)
     grouped = grouped.groupby("currency", group_keys=False).head(limit)
 
     rows = []
@@ -1592,15 +1592,30 @@ def top_activities_by_amount(
         },
     )
 
-    summary = f"Found {len(rows)} top activity amount(s)."
-    interpretation = (
-        "Commitments do not necessarily represent payments made."
-    )
+    filters = {
+        "transaction_type": transaction_type_code,
+    }
+    if selected_currency:
+        filters["currency"] = selected_currency
+
+    summary = f"Found {total_results} top activity amount(s)."
+    if transaction_type_code == "2":
+        interpretation = (
+            "Commitments do not necessarily represent payments made."
+        )
+    else:
+        interpretation = (
+            "Disbursements represent funds transferred to finance an activity."
+        )
     return h.text_result(
         f"{summary}\n\n{interpretation}",
         source_url=xml_source(),
         table=table,
         tool_name=tool_name,
+        total=total_results,
+        shown=len(rows),
+        filters=filters,
+        limit=limit,
     )
 
 
