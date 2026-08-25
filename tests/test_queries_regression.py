@@ -898,7 +898,6 @@ def test_transaction_totals_by_sector_allocates_percentages_and_unallocated_shar
     assert "Applied filters: transaction_type=2" in text
     assert "Applied limit: 50" in text
 
-    # Test that the limit is applied to the number of rows shown, but the total count is preserved.
     limited_result = queries.transaction_totals_by_sector(
         transaction_type="commitment",
         limit=2,
@@ -1134,6 +1133,36 @@ def test_transaction_totals_by_country_groups_by_country_and_currency(
         seed_cache.source,
     )
     assert "Found 4 country transaction total(s)." in _text(result)
+    assert "Total results: 4" in result.content[0].text
+    assert "Records shown: 4" in result.content[0].text
+    assert "Applied filters: transaction_type=2" in result.content[0].text
+    assert "Applied limit: 50" in result.content[0].text
+
+
+def test_transaction_totals_by_country_rejects_blank_currency(
+    seed_cache,
+):
+    result = queries.transaction_totals_by_country(currency="   ")
+
+    assert _text(result) == (
+        "Currency cannot be empty when provided."
+    )
+    assert "table" not in result.structuredContent
+    assert "=== Query details ===" not in _text(result)
+    _assert_data_source_only(result, seed_cache.source)
+
+
+def test_transaction_totals_by_country_rejects_invalid_limit(
+    seed_cache,
+):
+    result = queries.transaction_totals_by_country(limit=0)
+
+    assert _text(result) == (
+        "The result limit must be greater than zero."
+    )
+    assert "table" not in result.structuredContent
+    assert "=== Query details ===" not in _text(result)
+    _assert_data_source_only(result, seed_cache.source)
 
 
 def test_transaction_totals_by_country_filters_by_currency_and_uses_default_currency(
@@ -1176,6 +1205,14 @@ def test_transaction_totals_by_country_filters_by_currency_and_uses_default_curr
     assert result.structuredContent["table"][1][0] == "BR"
     assert result.structuredContent["table"][1][-2] == "EUR"
     assert result.structuredContent["table"][1][-1] == "300.00"
+    text = _text(result)
+    assert "Total results: 1" in text
+    assert "Records shown: 1" in text
+    assert (
+        "Applied filters: transaction_type=2, currency=EUR"
+        in text
+    )
+    assert "Applied limit: 50" in text
 
 
 def test_transaction_totals_by_country_rejects_invalid_transaction_type(
@@ -1191,6 +1228,7 @@ def test_transaction_totals_by_country_rejects_invalid_transaction_type(
         result,
         seed_cache.source,
     )
+    assert "=== Query details ===" not in _text(result)
 
 
 @pytest.mark.parametrize(

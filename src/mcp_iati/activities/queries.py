@@ -964,7 +964,6 @@ def transaction_totals_by_country(
             return h.empty_result(
                 "Currency cannot be empty when provided.",
                 source_url=xml_source(),
-                tool_name=tool_name,
             )
 
     activities = activities_df()[
@@ -1097,10 +1096,14 @@ def transaction_totals_by_country(
         ascending=[True, False, True],
         kind="mergesort",
     )
-    grouped = grouped.groupby("currency", group_keys=False).head(limit)
+    total = len(grouped)
+    shown = grouped.groupby(
+        "currency",
+        group_keys=False,
+    ).head(limit)
 
     rows = []
-    for _, row in grouped.iterrows():
+    for _, row in shown.iterrows():
         rows.append(
             {
                 "country_code": row["recipient_country_code"],
@@ -1126,12 +1129,19 @@ def transaction_totals_by_country(
         },
     )
 
-    summary = f"Found {len(rows)} country transaction total(s)."
+    summary = f"Found {total} country transaction total(s)."
     return h.text_result(
         summary,
         source_url=xml_source(),
         table=table,
         tool_name=tool_name,
+        total=total,
+        shown=len(rows),
+        filters={
+            "transaction_type": transaction_type_code,
+            "currency": selected_currency or None,
+        },
+        limit=limit,
     )
 
 
