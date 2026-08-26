@@ -1734,3 +1734,114 @@ def test_file_overview_keeps_transaction_currencies_separate(seed_cache):
         "USD",
         "40.00",
     ] in table
+
+
+def test_date_coverage_reports_activity_and_transaction_ranges(seed_cache):
+    seed_cache.activities["planned_start_date"] = [
+        "2022-01-10",
+        "2023-02-15",
+    ]
+    seed_cache.activities["actual_start_date"] = [
+        "2022-02-01",
+        "",
+    ]
+    seed_cache.activities["planned_end_date"] = [
+        "2024-12-31",
+        "invalid",
+    ]
+    seed_cache.activities["actual_end_date"] = [
+        "",
+        "",
+    ]
+
+    result = queries.date_coverage()
+    table = result.structuredContent["table"]
+
+    assert table[0] == [
+        "Dataset",
+        "Date type",
+        "Earliest date",
+        "Latest date",
+        "Records with date",
+        "Missing dates",
+        "Invalid dates",
+    ]
+
+    assert [
+        "Activities",
+        "Planned start",
+        "2022-01-10",
+        "2023-02-15",
+        2,
+        0,
+        0,
+    ] in table
+
+    assert [
+        "Activities",
+        "Actual start",
+        "2022-02-01",
+        "2022-02-01",
+        1,
+        1,
+        0,
+    ] in table
+
+    assert [
+        "Activities",
+        "Planned end",
+        "2024-12-31",
+        "2024-12-31",
+        1,
+        0,
+        1,
+    ] in table
+
+    assert [
+        "Transactions",
+        "Transaction date",
+        "2024-01-10",
+        "2024-03-10",
+        3,
+        0,
+        0,
+    ] in table
+
+def test_date_coverage_can_select_transactions_only(seed_cache):
+    result = queries.date_coverage(date_kind="transactions")
+
+    table = result.structuredContent["table"]
+    text = result.content[0].text
+
+    assert len(table) == 2
+    assert table[1] == [
+        "Transactions",
+        "Transaction date",
+        "2024-01-10",
+        "2024-03-10",
+        3,
+        0,
+        0,
+    ]
+
+    assert "Applied filters: date_kind=transactions" in text
+
+
+@pytest.mark.parametrize(
+    "date_kind",
+    ["invalid", "", "activity"],
+)
+def test_date_coverage_rejects_invalid_date_kind(
+    seed_cache,
+    date_kind,
+):
+    result = queries.date_coverage(date_kind=date_kind)
+
+    assert "table" not in result.structuredContent
+    assert (
+        "Unsupported date kind. Use activities, transactions or all."
+        in result.content[0].text
+    )
+    assert result.structuredContent["sources"] == [
+        "/data/fake-iati-sample.xml"
+    ]

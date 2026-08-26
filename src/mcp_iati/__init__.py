@@ -42,6 +42,7 @@ def _register_iati_tools(mcp):  # noqa: C901
         sample_questions=[
             "Search IATI activities about transport",
             "What does this IATI file contain?",
+            "What date range does this IATI file cover?",
             "Give me a summary of activity XI-IATI-IADB-BR-L1231",
             "What does it mean for an activity to be in implementation?",
             "What is a policy marker?",
@@ -108,6 +109,28 @@ def _register_iati_tools(mcp):  # noqa: C901
         + tool_glossary_text("file_overview")
     )
     mcp.tool()(file_overview)
+
+    def date_coverage(
+        date_kind: str = "all",
+    ) -> DataToolOutput:
+        return activities.date_coverage(date_kind=date_kind)
+
+    date_coverage.__doc__ = (
+        """Report the date range covered by the configured IATI data.
+
+        Use date_kind to select activity dates, transaction dates or both:
+        - activities: planned and actual start and end dates.
+        - transactions: dates of financial transactions.
+        - all: both activity and transaction dates.
+
+        The result reports the earliest and latest valid date together with
+        counts of records containing valid, missing or invalid dates.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("date_coverage")
+    )
+    mcp.tool()(date_coverage)
 
     def search_activities(text: str, limit: int = 10) -> DataToolOutput:
         return activities.search_activities(text, limit=limit)

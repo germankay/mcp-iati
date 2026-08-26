@@ -238,6 +238,11 @@ TOOL_GLOSSARY_TERMS = {
         "disbursement",
         "expenditure",
     ),
+    "date_coverage": (
+        "IATI activity",
+        "activity date",
+        "transaction",
+    ),
     "search_activities": (
         "IATI activity",
         "IATI identifier",

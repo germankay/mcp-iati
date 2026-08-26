@@ -284,6 +284,150 @@ def file_overview():
     )
 
 
+def date_coverage(date_kind: str = "all"):
+    """Return activity and transaction date coverage."""
+    tool_name = "date_coverage"
+    selected_kind = str(date_kind).strip().casefold()
+
+    if selected_kind not in {"activities", "transactions", "all"}:
+        return h.empty_result(
+            "Unsupported date kind. Use activities, transactions or all.",
+            source_url=xml_source(),
+        )
+
+    rows = []
+
+    def add_date_row(
+        dataframe,
+        dataset: str,
+        date_type: str,
+        column: str,
+    ):
+        if column in dataframe.columns:
+            raw_dates = (
+                dataframe[column]
+                .fillna("")
+                .astype(str)
+                .str.strip()
+            )
+        else:
+            raw_dates = pd.Series(
+                "",
+                index=dataframe.index,
+                dtype="string",
+            )
+
+        has_value = raw_dates != ""
+        parsed_dates = pd.to_datetime(
+            raw_dates.where(has_value),
+            errors="coerce",
+            format="mixed",
+            utc=True,
+        )
+
+        valid_dates = has_value & parsed_dates.notna()
+        invalid_dates = has_value & parsed_dates.isna()
+
+        earliest = ""
+        latest = ""
+
+        if valid_dates.any():
+            earliest = (
+                parsed_dates.loc[valid_dates]
+                .min()
+                .strftime("%Y-%m-%d")
+            )
+            latest = (
+                parsed_dates.loc[valid_dates]
+                .max()
+                .strftime("%Y-%m-%d")
+            )
+
+        rows.append(
+            {
+                "dataset": dataset,
+                "date_type": date_type,
+                "earliest": earliest,
+                "latest": latest,
+                "records_with_date": int(valid_dates.sum()),
+                "missing_dates": int((~has_value).sum()),
+                "invalid_dates": int(invalid_dates.sum()),
+            }
+        )
+
+    if selected_kind in {"activities", "all"}:
+        activities = activities_df()
+
+        activity_date_columns = [
+            ("Planned start", "planned_start_date"),
+            ("Actual start", "actual_start_date"),
+            ("Planned end", "planned_end_date"),
+            ("Actual end", "actual_end_date"),
+        ]
+
+        for date_type, column in activity_date_columns:
+            add_date_row(
+                activities,
+                "Activities",
+                date_type,
+                column,
+            )
+
+    if selected_kind in {"transactions", "all"}:
+        add_date_row(
+            transactions_df(),
+            "Transactions",
+            "Transaction date",
+            "transaction_date",
+        )
+
+    table = h.build_table(
+        rows,
+        [
+            ("dataset", "Dataset"),
+            ("date_type", "Date type"),
+            ("earliest", "Earliest date"),
+            ("latest", "Latest date"),
+            ("records_with_date", "Records with date"),
+            ("missing_dates", "Missing dates"),
+            ("invalid_dates", "Invalid dates"),
+        ],
+    )
+
+    earliest_dates = [
+        row["earliest"]
+        for row in rows
+        if row["earliest"]
+    ]
+    latest_dates = [
+        row["latest"]
+        for row in rows
+        if row["latest"]
+    ]
+
+    if earliest_dates and latest_dates:
+        summary = (
+            f"Date coverage runs from {min(earliest_dates)} "
+            f"to {max(latest_dates)}. Missing and invalid dates "
+            "are reported separately for each date type."
+        )
+    else:
+        summary = (
+            "No valid dates were found for the selected date coverage. "
+            "Missing and invalid dates are reported in the table."
+        )
+
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+        tool_name=tool_name,
+        total=len(rows),
+        shown=len(rows),
+        filters={"date_kind": selected_kind},
+    )
+
+
 def search_activities(text: str, limit: int = 10):
     """Search IATI activities by a substring of their title."""
     tool_name = "search_activities"

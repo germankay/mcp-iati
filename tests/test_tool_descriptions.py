@@ -18,6 +18,7 @@ def test_register_tools_adds_expected_tools(fake_mcp):
     assert list(fake_mcp.tools) == [
         "no_tool_disponible",
         "file_overview",
+        "date_coverage",
         "search_activities",
         "list_activity_statuses",
         "list_reporting_organisations",
@@ -66,6 +67,7 @@ def test_plugin_sample_questions_cover_main_use_cases(fake_mcp):
     assert "Which activities have the highest commitment totals?" in questions
     assert "Which activities have the highest disbursement totals in USD?" in questions
     assert "Show annual commitments and disbursements from 2022 to 2024." in questions
+    assert "What date range does this IATI file cover?" in questions
 
 
 def test_no_tool_disponible_returns_clear_fallback_message(fake_mcp):
