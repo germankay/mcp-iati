@@ -77,6 +77,11 @@ DATA_TOOLS = [
         {"text": "programme"},
     ),
     (
+        "file_overview",
+        queries.file_overview,
+        {},
+    ),
+    (
         "list_activity_statuses",
         queries.list_activity_statuses,
         {},

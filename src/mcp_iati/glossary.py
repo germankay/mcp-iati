@@ -226,6 +226,18 @@ IATI_STANDARD_URL = "https://iatistandard.org/en/iati-standard/203/"
 
 
 TOOL_GLOSSARY_TERMS = {
+    "file_overview": (
+        "IATI activity",
+        "reporting organisation",
+        "recipient country or region",
+        "transaction",
+        "transaction type",
+        "transaction value",
+        "default currency",
+        "commitment",
+        "disbursement",
+        "expenditure",
+    ),
     "search_activities": (
         "IATI activity",
         "IATI identifier",

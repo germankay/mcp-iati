@@ -32,6 +32,258 @@ def _transaction_type_code(value: str) -> str | None:
     return _TRANSACTION_TYPE_FILTERS.get(str(value).strip().casefold())
 
 
+def file_overview():
+    """Return a general overview of the configured IATI data."""
+    tool_name = "file_overview"
+    activities = activities_df().copy()
+    transactions = transactions_df().copy()
+
+    if activities.empty:
+        return h.empty_result(
+            "No activities were found in the loaded IATI data.",
+            source_url=xml_source(),
+        )
+
+    activities["activity_identifier"] = (
+        activities["activity_identifier"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+
+    total_activities = activities[
+        "activity_identifier"
+    ].replace("", pd.NA).nunique()
+
+    rows = [
+        {
+            "category": "File",
+            "value": "Activities",
+            "count": total_activities,
+            "currency": "",
+            "amount": "",
+        }
+    ]
+
+    # Reporting organisations.
+    activities["reporting_org_name"] = (
+        activities["reporting_org_name"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    activities["reporting_org_ref"] = (
+        activities["reporting_org_ref"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    activities["display_org"] = activities["reporting_org_name"].where(
+        activities["reporting_org_name"] != "",
+        activities["reporting_org_ref"],
+    )
+    activities["display_org"] = activities["display_org"].where(
+        activities["display_org"] != "",
+        "Unknown reporting organisation",
+    )
+
+    organisation_counts = (
+        activities.groupby("display_org", dropna=False)[
+            "activity_identifier"
+        ]
+        .nunique()
+        .sort_index()
+    )
+
+    for organisation, count in organisation_counts.items():
+        rows.append(
+            {
+                "category": "Reporting organisation",
+                "value": organisation,
+                "count": int(count),
+                "currency": "",
+                "amount": "",
+            }
+        )
+
+    # Recipient countries.
+    activities["recipient_country_name"] = (
+        activities["recipient_country_name"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    activities["recipient_country_code"] = (
+        activities["recipient_country_code"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    activities["display_country"] = activities[
+        "recipient_country_name"
+    ].where(
+        activities["recipient_country_name"] != "",
+        activities["recipient_country_code"],
+    )
+    activities["display_country"] = activities["display_country"].where(
+        activities["display_country"] != "",
+        "Unknown",
+    )
+
+    country_counts = (
+        activities.groupby("display_country", dropna=False)[
+            "activity_identifier"
+        ]
+        .nunique()
+        .sort_index()
+    )
+
+    for country, count in country_counts.items():
+        rows.append(
+            {
+                "category": "Recipient country",
+                "value": country,
+                "count": int(count),
+                "currency": "",
+                "amount": "",
+            }
+        )
+
+    # Default currencies declared by activities.
+    activities["default_currency"] = (
+        activities["default_currency"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    currency_counts = (
+        activities.loc[
+            activities["default_currency"] != "",
+            "default_currency",
+        ]
+        .value_counts()
+        .sort_index()
+    )
+
+    for currency_code, count in currency_counts.items():
+        rows.append(
+            {
+                "category": "Default currency",
+                "value": currency_code,
+                "count": int(count),
+                "currency": currency_code,
+                "amount": "",
+            }
+        )
+
+    # Financial totals, kept separate by transaction type and currency.
+    if not transactions.empty:
+        transactions["transaction_type"] = (
+            transactions["transaction_type"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+        transactions["currency"] = (
+            transactions["currency"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.upper()
+        )
+        transactions["value"] = pd.to_numeric(
+            transactions["value"],
+            errors="coerce",
+        )
+
+        default_currencies = activities[
+            ["activity_identifier", "default_currency"]
+        ].drop_duplicates(subset=["activity_identifier"])
+
+        transactions = transactions.merge(
+            default_currencies,
+            on="activity_identifier",
+            how="left",
+        )
+        transactions["default_currency"] = (
+            transactions["default_currency"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.upper()
+        )
+        transactions["currency"] = transactions["currency"].where(
+            transactions["currency"] != "",
+            transactions["default_currency"],
+        )
+        transactions["currency"] = transactions["currency"].where(
+            transactions["currency"] != "",
+            "Unknown",
+        )
+
+        transaction_totals = (
+            transactions.loc[
+                transactions["value"].notna()
+                & (transactions["transaction_type"] != "")
+            ]
+            .groupby(
+                ["transaction_type", "currency"],
+                dropna=False,
+            )["value"]
+            .agg(["count", "sum"])
+            .reset_index()
+        )
+        transaction_totals["type_label"] = transaction_totals[
+            "transaction_type"
+        ].map(h.transaction_type_label)
+        transaction_totals = transaction_totals.sort_values(
+            ["type_label", "currency"],
+            kind="mergesort",
+        )
+
+        for _, transaction in transaction_totals.iterrows():
+            rows.append(
+                {
+                    "category": "Transaction total",
+                    "value": transaction["type_label"],
+                    "count": int(transaction["count"]),
+                    "currency": transaction["currency"],
+                    "amount": h.format_amount(transaction["sum"]),
+                }
+            )
+
+    table = h.build_table(
+        rows,
+        [
+            ("category", "Category"),
+            ("value", "Value"),
+            ("count", "Count"),
+            ("currency", "Currency"),
+            ("amount", "Amount"),
+        ],
+    )
+
+    summary = (
+        f"Found {total_activities} IATI activities, "
+        f"{len(organisation_counts)} reporting organisation(s), "
+        f"{len(country_counts)} recipient country value(s) and "
+        f"{len(currency_counts)} default currency value(s). "
+        "Financial totals are reported separately by transaction type "
+        "and currency."
+    )
+
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+        tool_name=tool_name,
+        total=len(rows),
+        shown=len(rows),
+    )
+
+
 def search_activities(text: str, limit: int = 10):
     """Search IATI activities by a substring of their title."""
     tool_name = "search_activities"

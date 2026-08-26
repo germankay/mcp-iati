@@ -1582,3 +1582,155 @@ def test_top_activities_uses_country_code_fallback(seed_cache):
         for row in table
         for cell in row
     )
+
+
+def test_file_overview_summarises_loaded_iati_data(seed_cache):
+    result = queries.file_overview()
+
+    table = result.structuredContent["table"]
+    text = result.content[0].text
+
+    assert table[0] == [
+        "Category",
+        "Value",
+        "Count",
+        "Currency",
+        "Amount",
+    ]
+
+    assert [
+        "File",
+        "Activities",
+        2,
+        "",
+        "",
+    ] in table
+
+    assert [
+        "Reporting organisation",
+        "Development Bank",
+        1,
+        "",
+        "",
+    ] in table
+
+    assert [
+        "Reporting organisation",
+        "ORG-002",
+        1,
+        "",
+        "",
+    ] in table
+
+    assert [
+        "Recipient country",
+        "Argentina",
+        1,
+        "",
+        "",
+    ] in table
+
+    assert [
+        "Recipient country",
+        "Brazil",
+        1,
+        "",
+        "",
+    ] in table
+
+    assert [
+        "Transaction total",
+        "Out Commitment",
+        2,
+        "USD",
+        "1,500.00",
+    ] in table
+
+    assert [
+        "Transaction total",
+        "Disbursement",
+        1,
+        "USD",
+        "750.00",
+    ] in table
+
+    assert "Found 2 IATI activities" in text
+    assert "/data/fake-iati-sample.xml" in result.structuredContent["sources"]
+
+
+def test_file_overview_keeps_transaction_currencies_separate(seed_cache):
+    data._cache["dataframe:activities"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "title": "Alpha",
+            "activity_status": "2",
+            "reporting_org_name": "Org A",
+            "reporting_org_ref": "ORG-A",
+            "recipient_country_code": "AR",
+            "recipient_country_name": "Argentina",
+            "default_currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "title": "Beta",
+            "activity_status": "2",
+            "reporting_org_name": "Org B",
+            "reporting_org_ref": "ORG-B",
+            "recipient_country_code": "BR",
+            "recipient_country_name": "Brazil",
+            "default_currency": "EUR",
+        },
+    ])
+    data._cache["dataframe:transactions"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 100.0,
+            "currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "transaction_type": "2",
+            "value": 200.0,
+            "currency": "EUR",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "transaction_type": "2",
+            "value": 50.0,
+            "currency": "",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "3",
+            "value": 40.0,
+            "currency": "USD",
+        },
+    ])
+
+    result = queries.file_overview()
+    table = result.structuredContent["table"]
+
+    assert [
+        "Transaction total",
+        "Out Commitment",
+        2,
+        "EUR",
+        "250.00",
+    ] in table
+
+    assert [
+        "Transaction total",
+        "Out Commitment",
+        1,
+        "USD",
+        "100.00",
+    ] in table
+
+    assert [
+        "Transaction total",
+        "Disbursement",
+        1,
+        "USD",
+        "40.00",
+    ] in table

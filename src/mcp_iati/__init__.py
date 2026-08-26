@@ -41,6 +41,7 @@ def _register_iati_tools(mcp):  # noqa: C901
         ),
         sample_questions=[
             "Search IATI activities about transport",
+            "What does this IATI file contain?",
             "Give me a summary of activity XI-IATI-IADB-BR-L1231",
             "What does it mean for an activity to be in implementation?",
             "What is a policy marker?",
@@ -82,6 +83,31 @@ def _register_iati_tools(mcp):  # noqa: C901
         if reason:
             msg += f" Reason: {reason}."
         return h.text_result(msg, source_url="")
+
+    def file_overview() -> DataToolOutput:
+        return activities.file_overview()
+
+    file_overview.__doc__ = (
+        """Summarise the contents of the configured IATI file.
+
+        Use this tool for general questions such as what the file contains,
+        how many activities it has, which organisations report them, which
+        recipient countries and currencies appear, and how much financial
+        activity is reported.
+
+        Financial totals are kept separate by transaction type and currency.
+        The result includes:
+        - Total number of activities.
+        - Reporting organisations and their activity counts.
+        - Recipient countries and their activity counts.
+        - Default currencies used by activities.
+        - Transaction totals by type and currency.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("file_overview")
+    )
+    mcp.tool()(file_overview)
 
     def search_activities(text: str, limit: int = 10) -> DataToolOutput:
         return activities.search_activities(text, limit=limit)
