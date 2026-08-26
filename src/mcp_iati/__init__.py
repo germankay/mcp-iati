@@ -42,6 +42,8 @@ def _register_iati_tools(mcp):  # noqa: C901
         sample_questions=[
             "Search IATI activities about transport",
             "What does this IATI file contain?",
+            "What transaction types are present in this IATI file?",
+            "What aid types are present in this IATI file?",
             "What date range does this IATI file cover?",
             "Give me a summary of activity XI-IATI-IADB-BR-L1231",
             "What does it mean for an activity to be in implementation?",
@@ -131,6 +133,41 @@ def _register_iati_tools(mcp):  # noqa: C901
         + tool_glossary_text("date_coverage")
     )
     mcp.tool()(date_coverage)
+
+    def list_category_values(
+        category: str,
+        limit: int = 100,
+    ) -> DataToolOutput:
+        return activities.list_category_values(
+            category=category,
+            limit=limit,
+        )
+
+    list_category_values.__doc__ = (
+        """List the values present in a categorical IATI field.
+
+        Use this tool to explore available values before applying filters.
+        Supported categories are:
+        - activity_status
+        - transaction_type
+        - sector
+        - organisation_type
+        - aid_type
+        - finance_type
+        - flow_type
+        - tied_status
+        - collaboration_type
+        - humanitarian
+        - default_currency
+
+        The result includes each code, its readable value, its vocabulary
+        when applicable, and the number of records containing it.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("list_category_values")
+    )
+    mcp.tool()(list_category_values)
 
     def search_activities(text: str, limit: int = 10) -> DataToolOutput:
         return activities.search_activities(text, limit=limit)

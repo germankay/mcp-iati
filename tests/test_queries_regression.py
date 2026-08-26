@@ -1845,3 +1845,200 @@ def test_date_coverage_rejects_invalid_date_kind(
     assert result.structuredContent["sources"] == [
         "/data/fake-iati-sample.xml"
     ]
+
+def test_list_category_values_lists_activity_statuses(seed_cache):
+    result = queries.list_category_values("activity_status")
+
+    table = result.structuredContent["table"]
+
+    assert table[0] == [
+        "Category",
+        "Code",
+        "Value",
+        "Vocabulary",
+        "Records",
+    ]
+
+    assert [
+        "Activity status",
+        "2",
+        "Implementation",
+        "",
+        1,
+    ] in table
+
+    assert [
+        "Activity status",
+        "3",
+        "Completion",
+        "",
+        1,
+    ] in table
+
+
+def test_list_category_values_lists_transaction_types(seed_cache):
+    result = queries.list_category_values("transaction_type")
+
+    table = result.structuredContent["table"]
+
+    assert [
+        "Transaction type",
+        "2",
+        "Out Commitment",
+        "",
+        2,
+    ] in table
+
+    assert [
+        "Transaction type",
+        "3",
+        "Disbursement",
+        "",
+        1,
+    ] in table
+
+def test_list_category_values_lists_sectors(seed_cache):
+    result = queries.list_category_values("sector")
+
+    table = result.structuredContent["table"]
+
+    assert [
+        "Sector",
+        "12220",
+        "Basic health care",
+        "1",
+        1,
+    ] in table
+
+    assert [
+        "Sector",
+        "TR",
+        "Transport",
+        "99",
+        1,
+    ] in table
+
+
+def test_list_category_values_lists_optional_activity_categories(
+    seed_cache,
+):
+    seed_cache.activities["reporting_org_type"] = ["40", "10"]
+    seed_cache.activities["default_aid_type"] = ["C01", "B01"]
+    seed_cache.activities["default_aid_type_vocabulary"] = ["1", "1"]
+    seed_cache.activities["humanitarian"] = ["0", "1"]
+
+    organisation_result = queries.list_category_values(
+        "organisation_type"
+    )
+    organisation_table = organisation_result.structuredContent["table"]
+
+    assert [
+        "Organisation type",
+        "40",
+        "Multilateral",
+        "",
+        1,
+    ] in organisation_table
+
+    assert [
+        "Organisation type",
+        "10",
+        "Government",
+        "",
+        1,
+    ] in organisation_table
+
+    aid_result = queries.list_category_values("aid_type")
+    aid_table = aid_result.structuredContent["table"]
+
+    assert [
+        "Aid type",
+        "C01",
+        "Project Type",
+        "1",
+        1,
+    ] in aid_table
+
+    assert [
+        "Aid type",
+        "B01",
+        "Core Support Ngos",
+        "1",
+        1,
+    ] in aid_table
+
+    humanitarian_result = queries.list_category_values("humanitarian")
+    humanitarian_table = humanitarian_result.structuredContent["table"]
+
+    assert [
+        "Humanitarian",
+        "0",
+        "No",
+        "",
+        1,
+    ] in humanitarian_table
+
+    assert [
+        "Humanitarian",
+        "1",
+        "Yes",
+        "",
+        1,
+    ] in humanitarian_table
+
+def test_list_category_values_reports_applied_limit(seed_cache):
+    result = queries.list_category_values(
+        "transaction_type",
+        limit=1,
+    )
+
+    table = result.structuredContent["table"]
+    text = result.content[0].text
+
+    assert len(table) == 2
+    assert table[1] == [
+        "Transaction type",
+        "2",
+        "Out Commitment",
+        "",
+        2,
+    ]
+
+    assert "Total results: 2" in text
+    assert "Records shown: 1" in text
+    assert "Applied filters: category=transaction_type" in text
+    assert "Applied limit: 1" in text
+
+
+def test_list_category_values_rejects_invalid_category(seed_cache):
+    result = queries.list_category_values("invalid")
+
+    assert "table" not in result.structuredContent
+    assert "Unsupported category. Use one of:" in result.content[0].text
+    assert result.structuredContent["sources"] == [
+        "/data/fake-iati-sample.xml"
+    ]
+
+
+def test_list_category_values_rejects_invalid_limit(seed_cache):
+    result = queries.list_category_values(
+        "activity_status",
+        limit=0,
+    )
+
+    assert "table" not in result.structuredContent
+    assert (
+        "The result limit must be greater than zero."
+        in result.content[0].text
+    )
+
+
+def test_list_category_values_reports_unavailable_optional_field(
+    seed_cache,):
+    result = queries.list_category_values("organisation_type")
+
+    assert "table" not in result.structuredContent
+    assert (
+        "Category 'organisation_type' is not available"
+        in result.content[0].text
+    )

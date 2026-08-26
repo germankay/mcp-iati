@@ -15,6 +15,7 @@ from .format import (
     format_amount,
     text_result,
     transaction_type_label,
+    category_value_label,
 )
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "format_amount",
     "text_result",
     "transaction_type_label",
+    "category_value_label",
 ]

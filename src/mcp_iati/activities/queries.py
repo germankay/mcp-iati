@@ -428,6 +428,221 @@ def date_coverage(date_kind: str = "all"):
     )
 
 
+def list_category_values(
+    category: str,
+    limit: int = 100,
+):
+    """List values and counts for a supported categorical IATI field."""
+    tool_name = "list_category_values"
+    selected_category = str(category).strip().casefold()
+
+    if limit < 1:
+        return h.empty_result(
+            "The result limit must be greater than zero.",
+            source_url=xml_source(),
+        )
+
+    category_specs = {
+        "activity_status": {
+            "label": "Activity status",
+            "dataframe": activities_df,
+            "column": "activity_status",
+        },
+        "transaction_type": {
+            "label": "Transaction type",
+            "dataframe": transactions_df,
+            "column": "transaction_type",
+        },
+        "sector": {
+            "label": "Sector",
+            "dataframe": sectors_df,
+            "column": "sector_code",
+            "value_column": "sector_name",
+            "vocabulary_column": "vocabulary",
+        },
+        "organisation_type": {
+            "label": "Organisation type",
+            "dataframe": activities_df,
+            "column": "reporting_org_type",
+        },
+        "aid_type": {
+            "label": "Aid type",
+            "dataframe": activities_df,
+            "column": "default_aid_type",
+            "vocabulary_column": "default_aid_type_vocabulary",
+        },
+        "finance_type": {
+            "label": "Finance type",
+            "dataframe": activities_df,
+            "column": "default_finance_type",
+        },
+        "flow_type": {
+            "label": "Flow type",
+            "dataframe": activities_df,
+            "column": "default_flow_type",
+        },
+        "tied_status": {
+            "label": "Tied status",
+            "dataframe": activities_df,
+            "column": "default_tied_status",
+        },
+        "collaboration_type": {
+            "label": "Collaboration type",
+            "dataframe": activities_df,
+            "column": "collaboration_type",
+        },
+        "humanitarian": {
+            "label": "Humanitarian",
+            "dataframe": activities_df,
+            "column": "humanitarian",
+        },
+        "default_currency": {
+            "label": "Default currency",
+            "dataframe": activities_df,
+            "column": "default_currency",
+        },
+    }
+
+    spec = category_specs.get(selected_category)
+    if spec is None:
+        supported = ", ".join(sorted(category_specs))
+        return h.empty_result(
+            f"Unsupported category. Use one of: {supported}.",
+            source_url=xml_source(),
+        )
+
+    dataframe = spec["dataframe"]()
+    code_column = spec["column"]
+
+    if code_column not in dataframe.columns:
+        return h.empty_result(
+            f"Category '{selected_category}' is not available "
+            "in the loaded IATI data.",
+            source_url=xml_source(),
+        )
+
+    working = pd.DataFrame({
+        "code": (
+            dataframe[code_column]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+    })
+
+    value_column = spec.get("value_column")
+    if value_column and value_column in dataframe.columns:
+        explicit_values = (
+            dataframe[value_column]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+    else:
+        explicit_values = pd.Series(
+            "",
+            index=dataframe.index,
+            dtype="string",
+        )
+
+    vocabulary_column = spec.get("vocabulary_column")
+    if vocabulary_column and vocabulary_column in dataframe.columns:
+        working["vocabulary"] = (
+            dataframe[vocabulary_column]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+    else:
+        working["vocabulary"] = ""
+
+    working = working[working["code"] != ""].copy()
+
+    if working.empty:
+        return h.empty_result(
+            f"No values were found for category "
+            f"'{selected_category}'.",
+            source_url=xml_source(),
+        )
+
+    formatted_values = working["code"].map(
+        lambda value: h.category_value_label(
+            selected_category,
+            value,
+        )
+    )
+    explicit_values = explicit_values.loc[working.index]
+
+    working["value"] = explicit_values.where(
+        explicit_values != "",
+        formatted_values,
+    )
+
+    # AidType labels only apply to vocabulary 1 (OECD DAC).
+    if selected_category == "aid_type":
+        non_dac = ~working["vocabulary"].isin(["", "1"])
+        working.loc[non_dac, "value"] = working.loc[
+            non_dac,
+            "code",
+        ]
+
+    counts = (
+        working.groupby(
+            ["code", "value", "vocabulary"],
+            dropna=False,
+        )
+        .size()
+        .reset_index(name="records")
+    )
+    counts["category"] = spec["label"]
+
+    counts = counts.sort_values(
+        ["records", "value", "code"],
+        ascending=[False, True, True],
+        kind="mergesort",
+    )
+
+    total = len(counts)
+    shown = counts.head(limit)
+
+    rows = shown[
+        [
+            "category",
+            "code",
+            "value",
+            "vocabulary",
+            "records",
+        ]
+    ].to_dict("records")
+
+    table = h.build_table(
+        rows,
+        [
+            ("category", "Category"),
+            ("code", "Code"),
+            ("value", "Value"),
+            ("vocabulary", "Vocabulary"),
+            ("records", "Records"),
+        ],
+    )
+
+    summary = (
+        f"Found {total} value(s) for category "
+        f"'{selected_category}'."
+    )
+
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+        tool_name=tool_name,
+        total=total,
+        shown=len(rows),
+        filters={"category": selected_category},
+        limit=limit,
+    )
+
+
 def search_activities(text: str, limit: int = 10):
     """Search IATI activities by a substring of their title."""
     tool_name = "search_activities"

@@ -77,6 +77,11 @@ DATA_TOOLS = [
         {"date_kind": "transactions"},
     ),
     (
+        "list_category_values",
+        queries.list_category_values,
+        {"category": "activity_status"},
+    ),
+    (
         "search_activities",
         queries.search_activities,
         {"text": "programme"},
