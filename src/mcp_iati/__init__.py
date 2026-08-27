@@ -2,12 +2,14 @@ from mcp_server import DataToolOutput
 
 from mcp_iati import helpers as h
 from mcp_iati import terms
+from mcp_iati.activities.data import prepare_data
 from mcp_iati.activities import queries as activities
 from mcp_iati.glossary import full_glossary_text, glossary_text
 
 
 def register_tools(mcp):
     """Entry point invoked by mcp-server (see the `mcp_server` entry point in pyproject.toml)."""
+    prepare_data()
     _register_iati_tools(mcp)
 
 

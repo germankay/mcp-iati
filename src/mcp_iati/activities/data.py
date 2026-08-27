@@ -32,6 +32,13 @@ from mcp_iati.config import get_settings
 _SAMPLES_BASE_URL = "https://raw.githubusercontent.com/okfn/okfn_iati/main/data-samples/xml"
 _cache: dict = {}
 
+# These CSVs are required for the tools to work; if they are missing, the
+# conversion failed or the XML is not a valid IATI activities file.
+REQUIRED_TOOL_CSVS = (
+    "activities.csv",
+    "transactions.csv",
+)
+
 
 def _cache_is_fresh(path: Path) -> bool:
     """Return whether a cached file is still inside the configured TTL."""
@@ -217,6 +224,39 @@ def _csv_folder() -> Path:
                 shutil.rmtree(tmp_dir)
         _cache["csv_folder"] = cache_dir
     return _cache["csv_folder"]
+
+
+def prepare_data() -> Path:
+    """Prepare and validate the configured IATI data before serving tools."""
+    source = xml_source()
+
+    try:
+        folder = _csv_folder()
+    except (FileNotFoundError, RuntimeError) as error:
+        raise RuntimeError(
+            f"Could not prepare IATI data from {source}: {error}"
+        ) from error
+
+    missing_files = [
+        filename
+        for filename in REQUIRED_TOOL_CSVS
+        if not (folder / filename).exists()
+    ]
+    if missing_files:
+        missing = ", ".join(missing_files)
+        raise RuntimeError(
+            f"IATI data from {source} is missing required CSV files: "
+            f"{missing}"
+        )
+
+    generated_csvs = sorted(path.name for path in folder.glob("*.csv"))
+
+    print(
+        f"IATI data prepared from {source}: "
+        f"{len(generated_csvs)} CSV files in {folder}"
+    )
+
+    return folder
 
 
 def activities_df() -> pd.DataFrame:
