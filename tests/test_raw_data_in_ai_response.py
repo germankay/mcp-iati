@@ -13,8 +13,12 @@ import pytest
 
 from mcp_iati import helpers as h
 from mcp_iati import terms
-from mcp_iati.helpers.format import _table_to_text
 from mcp_iati.activities import queries
+from mcp_iati.glossary import (
+    IATI_STANDARD_URL,
+    TOOL_GLOSSARY_TERMS,
+)
+from mcp_iati.helpers.format import _table_to_text
 
 
 def _text(res):
@@ -155,3 +159,44 @@ def test_tool_embeds_full_table_in_ai_text(seed_cache, name, fn, kwargs):
     assert _table_to_text(sc["table"]) in txt, (
         f"{name}: the user-facing table is not verbatim in the AI text"
     )
+
+
+@pytest.mark.parametrize(
+    "name,fn,kwargs",
+    [
+        item
+        for item in DATA_TOOLS
+        if item[0] != "define_term"
+    ],
+    ids=[
+        item[0]
+        for item in DATA_TOOLS
+        if item[0] != "define_term"
+    ],
+)
+def test_data_tools_include_only_relevant_glossary_terms(
+    seed_cache,
+    name,
+    fn,
+    kwargs,
+):
+    result = fn(**kwargs)
+    text = _text(result)
+
+    assert "=== Relevant IATI terms ===" in text
+    assert IATI_STANDARD_URL in result.structuredContent["sources"]
+
+    expected_terms = TOOL_GLOSSARY_TERMS[name]
+    for term in expected_terms:
+        label = f"{term[0].upper()}{term[1:]}:"
+        assert label in text, f"{name}: missing definition for {term}"
+
+    unrelated_terms = (
+        set(TOOL_GLOSSARY_TERMS["top_activities_by_amount"])
+        - set(expected_terms)
+    )
+    for term in unrelated_terms:
+        label = f"{term[0].upper()}{term[1:]}:"
+        assert label not in text, (
+            f"{name}: included unrelated definition for {term}"
+        )

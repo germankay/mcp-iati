@@ -4,7 +4,7 @@ from mcp_iati import helpers as h
 from mcp_iati import terms
 from mcp_iati.activities.data import prepare_data
 from mcp_iati.activities import queries as activities
-from mcp_iati.glossary import full_glossary_text, glossary_text
+from mcp_iati.glossary import tool_glossary_text
 
 
 def register_tools(mcp):
@@ -29,15 +29,15 @@ def _register_iati_tools(mcp):  # noqa: C901
             "the IATI open data standard for development cooperation."
         ),
         instructions=(
-            "You are an assistant for querying IATI data. Interpret questions "
-            "using the glossary below and explain the terms whenever there may "
-            "be ambiguity. Do not confuse the reporting organisation with the "
-            "one funding or implementing an activity, nor a commitment with a "
-            "disbursement or an expenditure. Use only the data returned by the "
-            "tools; when the user asks what a term means, call define_term, and "
-            "if a question falls outside the tools' scope, call "
-            "no_tool_disponible explaining why.\n\n"
-            "IATI glossary:\n" + full_glossary_text()
+            "You are an assistant for querying IATI data. Use the definitions "
+            "attached to the selected tool and its successful response. Explain "
+            "only the IATI terms relevant to the user's question and do not add "
+            "unrelated glossary entries. Do not confuse the reporting organisation "
+            "with the organisation funding or implementing an activity, nor a "
+            "commitment with a disbursement or an expenditure. Use only the data "
+            "returned by the tools. When the user asks what a term means, call "
+            "define_term. If a question falls outside the tools' scope, call "
+            "no_tool_disponible and explain why."
         ),
         sample_questions=[
             "Search IATI activities about transport",
@@ -101,7 +101,7 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text("IATI activity", "IATI identifier", "activity status")
+        + tool_glossary_text("search_activities")
     )
     mcp.tool()(search_activities)
 
@@ -120,7 +120,7 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text("activity status", "IATI activity")
+        + tool_glossary_text("list_activity_statuses")
     )
     mcp.tool()(list_activity_statuses)
 
@@ -142,10 +142,7 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text(
-            "reporting organisation",
-            "IATI activity",
-        )
+        + tool_glossary_text("list_reporting_organisations")
     )
     mcp.tool()(list_reporting_organisations)
 
@@ -165,10 +162,7 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text(
-            "recipient country or region",
-            "IATI activity",
-        )
+        + tool_glossary_text("list_recipient_countries")
     )
     mcp.tool()(list_recipient_countries)
 
@@ -200,12 +194,7 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text(
-            "recipient country or region",
-            "IATI activity",
-            "IATI identifier",
-            "activity status",
-        )
+        + tool_glossary_text("filter_activities_by_country")
     )
     mcp.tool()(filter_activities_by_country)
 
@@ -228,11 +217,7 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text(
-            "sector",
-            "vocabulary",
-            "IATI activity",
-        )
+        + tool_glossary_text("list_sectors")
     )
     mcp.tool()(list_sectors)
 
@@ -250,16 +235,7 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text(
-            "IATI identifier",
-            "reporting organisation",
-            "activity status",
-            "transaction",
-            "commitment",
-            "disbursement",
-            "expenditure",
-            "default currency",
-        )
+        + tool_glossary_text("activity_summary")
     )
     mcp.tool()(activity_summary)
 
@@ -288,15 +264,7 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text(
-            "IATI identifier",
-            "transaction",
-            "transaction type",
-            "transaction value",
-            "commitment",
-            "disbursement",
-            "expenditure",
-        )
+        + tool_glossary_text("activity_transactions")
     )
     mcp.tool()(activity_transactions)
 
@@ -325,14 +293,7 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text(
-            "transaction",
-            "transaction type",
-            "transaction value",
-            "commitment",
-            "disbursement",
-            "default currency",
-        )
+        + tool_glossary_text("transaction_totals_by_year")
     )
     mcp.tool()(transaction_totals_by_year)
 
@@ -358,15 +319,7 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text(
-            "reporting organisation",
-            "transaction",
-            "transaction type",
-            "transaction value",
-            "commitment",
-            "disbursement",
-            "default currency",
-        )
+        + tool_glossary_text("transaction_totals_by_organisation")
     )
     mcp.tool()(transaction_totals_by_organisation)
 
@@ -403,16 +356,7 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text(
-            "sector",
-            "vocabulary",
-            "transaction",
-            "transaction type",
-            "transaction value",
-            "commitment",
-            "disbursement",
-            "default currency",
-        )
+        + tool_glossary_text("transaction_totals_by_sector")
     )
     mcp.tool()(transaction_totals_by_sector)
 
@@ -446,15 +390,7 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text(
-            "recipient country or region",
-            "transaction",
-            "transaction type",
-            "transaction value",
-            "commitment",
-            "disbursement",
-            "default currency",
-        )
+        + tool_glossary_text("transaction_totals_by_country")
     )
     mcp.tool()(transaction_totals_by_country)
 
@@ -488,18 +424,7 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text(
-            "IATI activity",
-            "IATI identifier",
-            "reporting organisation",
-            "recipient country or region",
-            "transaction",
-            "transaction type",
-            "transaction value",
-            "commitment",
-            "disbursement",
-            "default currency",
-        )
+        + tool_glossary_text("top_activities_by_amount")
     )
     mcp.tool()(top_activities_by_amount)
 

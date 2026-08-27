@@ -5,10 +5,22 @@ conftest.py: preloaded cache, no network).
 import pandas as pd
 import pytest
 from mcp_iati.activities import queries, data
-
+from mcp_iati.glossary import IATI_STANDARD_URL
 
 def _text(result):
     return result.content[0].text
+
+def _assert_data_and_glossary_sources(result, data_source):
+    assert result.structuredContent["sources"] == [
+        data_source,
+        IATI_STANDARD_URL,
+    ]
+
+
+def _assert_data_source_only(result, data_source):
+    assert result.structuredContent["sources"] == [
+        data_source,
+    ]
 
 
 def test_search_activities_preserves_table_and_source(seed_cache):
@@ -21,17 +33,24 @@ def test_search_activities_preserves_table_and_source(seed_cache):
         ["IATI identifier", "Title", "Status"],
         ["IATI-001", "Sustainable transport programme", "Implementation"],
     ]
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_and_glossary_sources(
+        result,
+        seed_cache.source,
+    )
 
 
 def test_search_activities_preserves_empty_response(seed_cache):
     result = queries.search_activities("nonexistent")
 
-    assert _text(result) == (
+    assert _text(result).startswith(
         "No IATI activities found with 'nonexistent' in the title."
     )
+    assert "=== Relevant IATI terms ===" not in _text(result)
     assert "table" not in result.structuredContent
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
 
 
 def test_activity_summary_preserves_details_totals_and_currency(seed_cache):
@@ -50,7 +69,10 @@ def test_activity_summary_preserves_details_totals_and_currency(seed_cache):
         ["Out Commitment", "1,500.00", "USD"],
         ["Disbursement", "750.00", "USD"],
     ]
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_and_glossary_sources(
+        result,
+        seed_cache.source,
+    )
 
 
 def test_activity_summary_falls_back_to_org_ref(seed_cache):
@@ -66,7 +88,10 @@ def test_activity_summary_preserves_not_found_response(seed_cache):
         "No IATI activity found with identifier 'UNKNOWN'."
     )
     assert "table" not in result.structuredContent
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
 
 
 def test_tools_use_preloaded_dataframes_without_preparing_data(
@@ -107,7 +132,10 @@ def test_list_activity_statuses_returns_counts_and_source(seed_cache):
         ["2", "Implementation", 1],
         ["3", "Completion", 1],
     ]
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_and_glossary_sources(
+        result,
+        seed_cache.source,
+    )
 
     text = result.content[0].text
     assert "Found 2 activity status value(s) across 2 activities." in text
@@ -129,7 +157,10 @@ def test_list_reporting_organisations_returns_counts_and_source(
         ["ORG-001", "Development Bank", 1],
         ["ORG-002", "ORG-002", 1],
     ]
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_and_glossary_sources(
+        result,
+        seed_cache.source,
+    )
 
     text = result.content[0].text
     assert "Found 2 reporting organisation(s) across 2 activities." in text
@@ -148,7 +179,10 @@ def test_list_recipient_countries_returns_counts_and_source(
         ["AR", "Argentina", 1],
         ["BR", "Brazil", 1],
     ]
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_and_glossary_sources(
+        result,
+        seed_cache.source,
+    )
 
     text = result.content[0].text
     assert "Found 2 recipient country value(s) across 2 activities." in text
@@ -182,7 +216,10 @@ def test_filter_activities_by_country_accepts_code_and_name(
             "Argentina",
         ],
     ]
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_and_glossary_sources(
+        result,
+        seed_cache.source,
+    )
 
     text = result.content[0].text
     assert "Found 1 IATI activity(ies)" in text
@@ -197,7 +234,10 @@ def test_filter_activities_by_country_returns_clear_empty_result(
         "No IATI activities were found for recipient country 'UY'."
     )
     assert "table" not in result.structuredContent
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
 
 
 def test_list_sectors_returns_counts_and_source(seed_cache):
@@ -208,7 +248,10 @@ def test_list_sectors_returns_counts_and_source(seed_cache):
         ["1", "12220", "Basic health care", 1],
         ["99", "TR", "Transport", 1],
     ]
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_and_glossary_sources(
+        result,
+        seed_cache.source,
+    )
 
     text = result.content[0].text
     assert "Found 2 sector value(s)." in text
@@ -305,7 +348,10 @@ def test_transaction_totals_by_year_groups_by_year_type_and_currency(
         [2024, "Disbursement", "EUR", "100.00"],
         [2024, "Disbursement", "USD", "750.00"],
     ]
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_and_glossary_sources(
+        result,
+        seed_cache.source,
+    )
 
     text = result.content[0].text
     assert "Found 5 annual transaction total(s)." in text
@@ -330,7 +376,10 @@ def test_transaction_totals_by_year_rejects_invalid_range(seed_cache):
         "The year_from value cannot be greater than year_to."
     )
     assert "table" not in result.structuredContent
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
 
 
 def test_activity_transactions_returns_chronological_rows_and_source(
@@ -368,7 +417,10 @@ def test_activity_transactions_returns_chronological_rows_and_source(
             "First disbursement",
         ],
     ]
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_and_glossary_sources(
+        result,
+        seed_cache.source,
+    )
 
     text = result.content[0].text
     assert "Found 3 transaction(s)" in text
@@ -382,7 +434,10 @@ def test_activity_transactions_rejects_unknown_activity(seed_cache):
         "No IATI activity found with identifier 'UNKNOWN'."
     )
     assert "table" not in result.structuredContent
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
 
 
 def test_transaction_totals_by_organisation_groups_by_org_type_and_currency(
@@ -478,7 +533,10 @@ def test_transaction_totals_by_organisation_groups_by_org_type_and_currency(
         ["ORG-002", "ORG-002", "Out Commitment", "EUR", "300.00"],
         ["", "Unknown reporting organisation", "Out Commitment", "USD", "500.00"],
     ]
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_and_glossary_sources(
+        result,
+        seed_cache.source,
+    )
 
     text = result.content[0].text
     assert "Found 5 organisation transaction total(s)." in text
@@ -495,7 +553,10 @@ def test_transaction_totals_by_organisation_rejects_invalid_limit(seed_cache):
         "The result limit must be greater than zero."
     )
     assert "table" not in result.structuredContent
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
 
 
 def test_sector_allocations_over_100_become_unallocated():
@@ -713,7 +774,10 @@ def test_transaction_totals_by_sector_rejects_invalid_transaction_type(seed_cach
         "Unsupported transaction type. Use commitment, disbursement, 2 or 3."
     )
     assert "table" not in result.structuredContent
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
 
 
 def test_transaction_totals_by_sector_rejects_invalid_limit(seed_cache):
@@ -723,7 +787,10 @@ def test_transaction_totals_by_sector_rejects_invalid_limit(seed_cache):
         "The result limit must be greater than zero."
     )
     assert "table" not in result.structuredContent
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
 
 
 def test_transaction_totals_by_country_groups_by_country_and_currency(
@@ -797,7 +864,10 @@ def test_transaction_totals_by_country_groups_by_country_and_currency(
         ["AR", "Argentina", "Out Commitment", "USD", "1,000.00"],
         ["", "Unknown recipient country", "Out Commitment", "USD", "500.00"],
     ]
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_and_glossary_sources(
+        result,
+        seed_cache.source,
+    )
     assert "Found 4 country transaction total(s)." in _text(result)
 
 
@@ -852,7 +922,10 @@ def test_transaction_totals_by_country_rejects_invalid_transaction_type(
         "Unsupported transaction type. Use commitment, disbursement, 2 or 3."
     )
     assert "table" not in result.structuredContent
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
 
 
 @pytest.mark.parametrize(
@@ -877,7 +950,10 @@ def test_top_activities_accepts_commitment_aliases(
         "USD",
         "1,500.00",
     ]
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_and_glossary_sources(
+        result,
+        seed_cache.source,
+    )
 
 
 @pytest.mark.parametrize(
@@ -1047,7 +1123,10 @@ def test_top_activities_rejects_invalid_transaction_type(seed_cache):
         "Unsupported transaction type. Use commitment, disbursement, 2 or 3."
     )
     assert "table" not in result.structuredContent
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
 
 
 def test_top_activities_rejects_invalid_limit(seed_cache):
@@ -1057,7 +1136,10 @@ def test_top_activities_rejects_invalid_limit(seed_cache):
         "The result limit must be greater than zero."
     )
     assert "table" not in result.structuredContent
-    assert result.structuredContent["sources"] == [seed_cache.source]
+    _assert_data_source_only(
+        result,
+        seed_cache.source,
+    )
 
 
 def test_top_activities_uses_org_ref_and_unknown_fallbacks(seed_cache):
@@ -1158,4 +1240,10 @@ def test_top_activities_uses_country_code_fallback(seed_cache):
 
     assert "BR" in _text(result)
     assert "Unknown" in _text(result)
-    assert "nan" not in _text(result).lower()
+    table = result.structuredContent["table"]
+
+    assert all(
+        str(cell).strip().lower() != "nan"
+        for row in table
+        for cell in row
+    )

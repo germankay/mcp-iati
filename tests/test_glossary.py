@@ -7,10 +7,14 @@ import pytest
 
 from mcp_iati.glossary import (
     IATI_GLOSSARY,
+    TOOL_GLOSSARY_TERMS,
     full_glossary_text,
     glossary_text,
     search_terms,
+    tool_glossary_terms,
+    tool_glossary_text,
 )
+from mcp_iati.activities import queries
 
 
 # One representative set per area of the IATI 2.03 standard covered by the
@@ -137,3 +141,44 @@ def test_search_terms_falls_back_to_definitions():
 def test_search_terms_empty_for_unknown_or_blank():
     assert search_terms("xyzzy") == []
     assert search_terms("   ") == []
+
+def test_every_tool_glossary_term_exists():
+    for terms in TOOL_GLOSSARY_TERMS.values():
+        assert all(term in IATI_GLOSSARY for term in terms)
+
+
+def test_tool_glossary_terms_returns_relevant_terms():
+    terms = tool_glossary_terms("transaction_totals_by_year")
+
+    assert "commitment" in terms
+    assert "disbursement" in terms
+    assert "sector" not in terms
+    assert "reporting organisation" not in terms
+
+
+def test_tool_glossary_terms_returns_empty_tuple_for_unknown_tool():
+    assert tool_glossary_terms("unknown_tool") == ()
+
+
+def test_tool_glossary_text_only_contains_relevant_definitions():
+    text = tool_glossary_text("list_sectors")
+
+    assert "Sector:" in text
+    assert "Vocabulary:" in text
+    assert "Commitment:" not in text
+    assert "Disbursement:" not in text
+
+
+def test_tool_glossary_text_is_empty_for_unknown_tool():
+    assert tool_glossary_text("unknown_tool") == ""
+
+def test_search_activities_empty_response_has_no_glossary(seed_cache):
+    result = queries.search_activities("not-present")
+
+    text = result.content[0].text
+
+    assert text.startswith("No IATI activities found")
+    assert "=== Relevant IATI terms ===" not in text
+    assert result.structuredContent["sources"] == [
+        seed_cache.source,
+    ]

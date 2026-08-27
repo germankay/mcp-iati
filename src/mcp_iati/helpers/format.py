@@ -7,6 +7,11 @@ from okfn_iati.enums import ActivityStatus, TransactionType
 
 from mcp_server.results import text_result as _text_result
 
+from mcp_iati.glossary import (
+    IATI_STANDARD_URL,
+    tool_glossary_text,
+)
+
 
 # Note for the AI: the rendered table was already shown on screen via
 # structuredContent; the text copy is there so it analyses the real numbers.
@@ -45,11 +50,46 @@ def _table_to_text(table):
         return ""
     return "\n".join(" | ".join(str(cell) for cell in row) for row in table)
 
+def _append_relevant_terms(body: str, tool_name: str | None) -> str:
+    """Append only the IATI definitions relevant to the calling tool."""
+    if not tool_name:
+        return body
+
+    definitions = tool_glossary_text(tool_name)
+    if not definitions:
+        return body
+
+    return (
+        f"{body}\n\n"
+        "=== Relevant IATI terms ===\n"
+        f"{definitions}"
+    )
+
+
+def _sources_with_iati_standard(
+    source_url: str | list[str],
+    tool_name: str | None,
+) -> str | list[str]:
+    """Include the IATI Standard when glossary definitions are attached."""
+    if not tool_name or not tool_glossary_text(tool_name):
+        return source_url
+
+    sources = (
+        list(source_url)
+        if isinstance(source_url, list)
+        else [source_url]
+    )
+
+    if IATI_STANDARD_URL not in sources:
+        sources.append(IATI_STANDARD_URL)
+
+    return sources
 
 def text_result(
     text: str,
     source_url: str | list[str],
     table: list[list[Any]] | None = None,
+    tool_name: str | None = None,
 ):
     """Build the standard IATI response.
 
@@ -59,7 +99,7 @@ def text_result(
     guardrail. `source_url` is explicit so this module stays independent
     from the data layer; queries pass `data.xml_source()`.
     """
-    body = text
+    body = _append_relevant_terms(text, tool_name)
     if table:
         body += (
             f"\n\n{ALREADY_TABLE}\n\n"
@@ -67,12 +107,29 @@ def text_result(
             + _table_to_text(table)
         )
     body = f"{body}\n\n{NO_SPECULATION}"
-    return _text_result(body, source_url=source_url, table=table)
+
+    result = _text_result(
+        body,
+        source_url=_sources_with_iati_standard(
+            source_url,
+            tool_name,
+        ),
+        table=table,
+    )
+    return result
 
 
-def empty_result(message: str, source_url: str | list[str]):
+def empty_result(
+    message: str,
+    source_url: str | list[str],
+):
     """Build the standard response for a query with no matching rows."""
-    return _text_result(message, source_url=source_url)
+
+    result = _text_result(
+        message,
+        source_url=source_url,
+    )
+    return result
 
 
 def activity_status_label(value: Any) -> str:
