@@ -1582,3 +1582,463 @@ def test_top_activities_uses_country_code_fallback(seed_cache):
         for row in table
         for cell in row
     )
+
+
+def test_file_overview_summarises_loaded_iati_data(seed_cache):
+    result = queries.file_overview()
+
+    table = result.structuredContent["table"]
+    text = result.content[0].text
+
+    assert table[0] == [
+        "Category",
+        "Value",
+        "Count",
+        "Currency",
+        "Amount",
+    ]
+
+    assert [
+        "File",
+        "Activities",
+        2,
+        "",
+        "",
+    ] in table
+
+    assert [
+        "Reporting organisation",
+        "Development Bank",
+        1,
+        "",
+        "",
+    ] in table
+
+    assert [
+        "Reporting organisation",
+        "ORG-002",
+        1,
+        "",
+        "",
+    ] in table
+
+    assert [
+        "Recipient country",
+        "Argentina",
+        1,
+        "",
+        "",
+    ] in table
+
+    assert [
+        "Recipient country",
+        "Brazil",
+        1,
+        "",
+        "",
+    ] in table
+
+    assert [
+        "Transaction total",
+        "Out Commitment",
+        2,
+        "USD",
+        "1,500.00",
+    ] in table
+
+    assert [
+        "Transaction total",
+        "Disbursement",
+        1,
+        "USD",
+        "750.00",
+    ] in table
+
+    assert "Found 2 IATI activities" in text
+    assert "/data/fake-iati-sample.xml" in result.structuredContent["sources"]
+
+
+def test_file_overview_keeps_transaction_currencies_separate(seed_cache):
+    data._cache["dataframe:activities"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "title": "Alpha",
+            "activity_status": "2",
+            "reporting_org_name": "Org A",
+            "reporting_org_ref": "ORG-A",
+            "recipient_country_code": "AR",
+            "recipient_country_name": "Argentina",
+            "default_currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "title": "Beta",
+            "activity_status": "2",
+            "reporting_org_name": "Org B",
+            "reporting_org_ref": "ORG-B",
+            "recipient_country_code": "BR",
+            "recipient_country_name": "Brazil",
+            "default_currency": "EUR",
+        },
+    ])
+    data._cache["dataframe:transactions"] = pd.DataFrame([
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "2",
+            "value": 100.0,
+            "currency": "USD",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "transaction_type": "2",
+            "value": 200.0,
+            "currency": "EUR",
+        },
+        {
+            "activity_identifier": "IATI-002",
+            "transaction_type": "2",
+            "value": 50.0,
+            "currency": "",
+        },
+        {
+            "activity_identifier": "IATI-001",
+            "transaction_type": "3",
+            "value": 40.0,
+            "currency": "USD",
+        },
+    ])
+
+    result = queries.file_overview()
+    table = result.structuredContent["table"]
+
+    assert [
+        "Transaction total",
+        "Out Commitment",
+        2,
+        "EUR",
+        "250.00",
+    ] in table
+
+    assert [
+        "Transaction total",
+        "Out Commitment",
+        1,
+        "USD",
+        "100.00",
+    ] in table
+
+    assert [
+        "Transaction total",
+        "Disbursement",
+        1,
+        "USD",
+        "40.00",
+    ] in table
+
+
+def test_date_coverage_reports_activity_and_transaction_ranges(seed_cache):
+    seed_cache.activities["planned_start_date"] = [
+        "2022-01-10",
+        "2023-02-15",
+    ]
+    seed_cache.activities["actual_start_date"] = [
+        "2022-02-01",
+        "",
+    ]
+    seed_cache.activities["planned_end_date"] = [
+        "2024-12-31",
+        "invalid",
+    ]
+    seed_cache.activities["actual_end_date"] = [
+        "",
+        "",
+    ]
+
+    result = queries.date_coverage()
+    table = result.structuredContent["table"]
+
+    assert table[0] == [
+        "Dataset",
+        "Date type",
+        "Earliest date",
+        "Latest date",
+        "Records with date",
+        "Missing dates",
+        "Invalid dates",
+    ]
+
+    assert [
+        "Activities",
+        "Planned start",
+        "2022-01-10",
+        "2023-02-15",
+        2,
+        0,
+        0,
+    ] in table
+
+    assert [
+        "Activities",
+        "Actual start",
+        "2022-02-01",
+        "2022-02-01",
+        1,
+        1,
+        0,
+    ] in table
+
+    assert [
+        "Activities",
+        "Planned end",
+        "2024-12-31",
+        "2024-12-31",
+        1,
+        0,
+        1,
+    ] in table
+
+    assert [
+        "Transactions",
+        "Transaction date",
+        "2024-01-10",
+        "2024-03-10",
+        3,
+        0,
+        0,
+    ] in table
+
+def test_date_coverage_can_select_transactions_only(seed_cache):
+    result = queries.date_coverage(date_kind="transactions")
+
+    table = result.structuredContent["table"]
+    text = result.content[0].text
+
+    assert len(table) == 2
+    assert table[1] == [
+        "Transactions",
+        "Transaction date",
+        "2024-01-10",
+        "2024-03-10",
+        3,
+        0,
+        0,
+    ]
+
+    assert "Applied filters: date_kind=transactions" in text
+
+
+@pytest.mark.parametrize(
+    "date_kind",
+    ["invalid", "", "activity"],
+)
+def test_date_coverage_rejects_invalid_date_kind(
+    seed_cache,
+    date_kind,
+):
+    result = queries.date_coverage(date_kind=date_kind)
+
+    assert "table" not in result.structuredContent
+    assert (
+        "Unsupported date kind. Use activities, transactions or all."
+        in result.content[0].text
+    )
+    assert result.structuredContent["sources"] == [
+        "/data/fake-iati-sample.xml"
+    ]
+
+def test_list_category_values_lists_activity_statuses(seed_cache):
+    result = queries.list_category_values("activity_status")
+
+    table = result.structuredContent["table"]
+
+    assert table[0] == [
+        "Category",
+        "Code",
+        "Value",
+        "Vocabulary",
+        "Records",
+    ]
+
+    assert [
+        "Activity status",
+        "2",
+        "Implementation",
+        "",
+        1,
+    ] in table
+
+    assert [
+        "Activity status",
+        "3",
+        "Completion",
+        "",
+        1,
+    ] in table
+
+
+def test_list_category_values_lists_transaction_types(seed_cache):
+    result = queries.list_category_values("transaction_type")
+
+    table = result.structuredContent["table"]
+
+    assert [
+        "Transaction type",
+        "2",
+        "Out Commitment",
+        "",
+        2,
+    ] in table
+
+    assert [
+        "Transaction type",
+        "3",
+        "Disbursement",
+        "",
+        1,
+    ] in table
+
+def test_list_category_values_lists_sectors(seed_cache):
+    result = queries.list_category_values("sector")
+
+    table = result.structuredContent["table"]
+
+    assert [
+        "Sector",
+        "12220",
+        "Basic health care",
+        "1",
+        1,
+    ] in table
+
+    assert [
+        "Sector",
+        "TR",
+        "Transport",
+        "99",
+        1,
+    ] in table
+
+
+def test_list_category_values_lists_optional_activity_categories(
+    seed_cache,
+):
+    seed_cache.activities["reporting_org_type"] = ["40", "10"]
+    seed_cache.activities["default_aid_type"] = ["C01", "B01"]
+    seed_cache.activities["default_aid_type_vocabulary"] = ["1", "1"]
+    seed_cache.activities["humanitarian"] = ["0", "1"]
+
+    organisation_result = queries.list_category_values(
+        "organisation_type"
+    )
+    organisation_table = organisation_result.structuredContent["table"]
+
+    assert [
+        "Organisation type",
+        "40",
+        "Multilateral",
+        "",
+        1,
+    ] in organisation_table
+
+    assert [
+        "Organisation type",
+        "10",
+        "Government",
+        "",
+        1,
+    ] in organisation_table
+
+    aid_result = queries.list_category_values("aid_type")
+    aid_table = aid_result.structuredContent["table"]
+
+    assert [
+        "Aid type",
+        "C01",
+        "Project Type",
+        "1",
+        1,
+    ] in aid_table
+
+    assert [
+        "Aid type",
+        "B01",
+        "Core Support Ngos",
+        "1",
+        1,
+    ] in aid_table
+
+    humanitarian_result = queries.list_category_values("humanitarian")
+    humanitarian_table = humanitarian_result.structuredContent["table"]
+
+    assert [
+        "Humanitarian",
+        "0",
+        "No",
+        "",
+        1,
+    ] in humanitarian_table
+
+    assert [
+        "Humanitarian",
+        "1",
+        "Yes",
+        "",
+        1,
+    ] in humanitarian_table
+
+def test_list_category_values_reports_applied_limit(seed_cache):
+    result = queries.list_category_values(
+        "transaction_type",
+        limit=1,
+    )
+
+    table = result.structuredContent["table"]
+    text = result.content[0].text
+
+    assert len(table) == 2
+    assert table[1] == [
+        "Transaction type",
+        "2",
+        "Out Commitment",
+        "",
+        2,
+    ]
+
+    assert "Total results: 2" in text
+    assert "Records shown: 1" in text
+    assert "Applied filters: category=transaction_type" in text
+    assert "Applied limit: 1" in text
+
+
+def test_list_category_values_rejects_invalid_category(seed_cache):
+    result = queries.list_category_values("invalid")
+
+    assert "table" not in result.structuredContent
+    assert "Unsupported category. Use one of:" in result.content[0].text
+    assert result.structuredContent["sources"] == [
+        "/data/fake-iati-sample.xml"
+    ]
+
+
+def test_list_category_values_rejects_invalid_limit(seed_cache):
+    result = queries.list_category_values(
+        "activity_status",
+        limit=0,
+    )
+
+    assert "table" not in result.structuredContent
+    assert (
+        "The result limit must be greater than zero."
+        in result.content[0].text
+    )
+
+
+def test_list_category_values_reports_unavailable_optional_field(
+    seed_cache,):
+    result = queries.list_category_values("organisation_type")
+
+    assert "table" not in result.structuredContent
+    assert (
+        "Category 'organisation_type' is not available"
+        in result.content[0].text
+    )

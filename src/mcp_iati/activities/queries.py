@@ -32,6 +32,617 @@ def _transaction_type_code(value: str) -> str | None:
     return _TRANSACTION_TYPE_FILTERS.get(str(value).strip().casefold())
 
 
+def file_overview():
+    """Return a general overview of the configured IATI data."""
+    tool_name = "file_overview"
+    activities = activities_df().copy()
+    transactions = transactions_df().copy()
+
+    if activities.empty:
+        return h.empty_result(
+            "No activities were found in the loaded IATI data.",
+            source_url=xml_source(),
+        )
+
+    activities["activity_identifier"] = (
+        activities["activity_identifier"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+
+    total_activities = activities[
+        "activity_identifier"
+    ].replace("", pd.NA).nunique()
+
+    rows = [
+        {
+            "category": "File",
+            "value": "Activities",
+            "count": total_activities,
+            "currency": "",
+            "amount": "",
+        }
+    ]
+
+    # Reporting organisations.
+    activities["reporting_org_name"] = (
+        activities["reporting_org_name"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    activities["reporting_org_ref"] = (
+        activities["reporting_org_ref"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    activities["display_org"] = activities["reporting_org_name"].where(
+        activities["reporting_org_name"] != "",
+        activities["reporting_org_ref"],
+    )
+    activities["display_org"] = activities["display_org"].where(
+        activities["display_org"] != "",
+        "Unknown reporting organisation",
+    )
+
+    organisation_counts = (
+        activities.groupby("display_org", dropna=False)[
+            "activity_identifier"
+        ]
+        .nunique()
+        .sort_index()
+    )
+
+    for organisation, count in organisation_counts.items():
+        rows.append(
+            {
+                "category": "Reporting organisation",
+                "value": organisation,
+                "count": int(count),
+                "currency": "",
+                "amount": "",
+            }
+        )
+
+    # Recipient countries.
+    activities["recipient_country_name"] = (
+        activities["recipient_country_name"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    activities["recipient_country_code"] = (
+        activities["recipient_country_code"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    activities["display_country"] = activities[
+        "recipient_country_name"
+    ].where(
+        activities["recipient_country_name"] != "",
+        activities["recipient_country_code"],
+    )
+    activities["display_country"] = activities["display_country"].where(
+        activities["display_country"] != "",
+        "Unknown",
+    )
+
+    country_counts = (
+        activities.groupby("display_country", dropna=False)[
+            "activity_identifier"
+        ]
+        .nunique()
+        .sort_index()
+    )
+
+    for country, count in country_counts.items():
+        rows.append(
+            {
+                "category": "Recipient country",
+                "value": country,
+                "count": int(count),
+                "currency": "",
+                "amount": "",
+            }
+        )
+
+    # Default currencies declared by activities.
+    activities["default_currency"] = (
+        activities["default_currency"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    currency_counts = (
+        activities.loc[
+            activities["default_currency"] != "",
+            "default_currency",
+        ]
+        .value_counts()
+        .sort_index()
+    )
+
+    for currency_code, count in currency_counts.items():
+        rows.append(
+            {
+                "category": "Default currency",
+                "value": currency_code,
+                "count": int(count),
+                "currency": currency_code,
+                "amount": "",
+            }
+        )
+
+    # Financial totals, kept separate by transaction type and currency.
+    if not transactions.empty:
+        transactions["transaction_type"] = (
+            transactions["transaction_type"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+        transactions["currency"] = (
+            transactions["currency"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.upper()
+        )
+        transactions["value"] = pd.to_numeric(
+            transactions["value"],
+            errors="coerce",
+        )
+
+        default_currencies = activities[
+            ["activity_identifier", "default_currency"]
+        ].drop_duplicates(subset=["activity_identifier"])
+
+        transactions = transactions.merge(
+            default_currencies,
+            on="activity_identifier",
+            how="left",
+        )
+        transactions["default_currency"] = (
+            transactions["default_currency"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.upper()
+        )
+        transactions["currency"] = transactions["currency"].where(
+            transactions["currency"] != "",
+            transactions["default_currency"],
+        )
+        transactions["currency"] = transactions["currency"].where(
+            transactions["currency"] != "",
+            "Unknown",
+        )
+
+        transaction_totals = (
+            transactions.loc[
+                transactions["value"].notna()
+                & (transactions["transaction_type"] != "")
+            ]
+            .groupby(
+                ["transaction_type", "currency"],
+                dropna=False,
+            )["value"]
+            .agg(["count", "sum"])
+            .reset_index()
+        )
+        transaction_totals["type_label"] = transaction_totals[
+            "transaction_type"
+        ].map(h.transaction_type_label)
+        transaction_totals = transaction_totals.sort_values(
+            ["type_label", "currency"],
+            kind="mergesort",
+        )
+
+        for _, transaction in transaction_totals.iterrows():
+            rows.append(
+                {
+                    "category": "Transaction total",
+                    "value": transaction["type_label"],
+                    "count": int(transaction["count"]),
+                    "currency": transaction["currency"],
+                    "amount": h.format_amount(transaction["sum"]),
+                }
+            )
+
+    table = h.build_table(
+        rows,
+        [
+            ("category", "Category"),
+            ("value", "Value"),
+            ("count", "Count"),
+            ("currency", "Currency"),
+            ("amount", "Amount"),
+        ],
+    )
+
+    summary = (
+        f"Found {total_activities} IATI activities, "
+        f"{len(organisation_counts)} reporting organisation(s), "
+        f"{len(country_counts)} recipient country value(s) and "
+        f"{len(currency_counts)} default currency value(s). "
+        "Financial totals are reported separately by transaction type "
+        "and currency."
+    )
+
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+        tool_name=tool_name,
+        total=len(rows),
+        shown=len(rows),
+    )
+
+
+def date_coverage(date_kind: str = "all"):
+    """Return activity and transaction date coverage."""
+    tool_name = "date_coverage"
+    selected_kind = str(date_kind).strip().casefold()
+
+    if selected_kind not in {"activities", "transactions", "all"}:
+        return h.empty_result(
+            "Unsupported date kind. Use activities, transactions or all.",
+            source_url=xml_source(),
+        )
+
+    rows = []
+
+    def add_date_row(
+        dataframe,
+        dataset: str,
+        date_type: str,
+        column: str,
+    ):
+        if column in dataframe.columns:
+            raw_dates = (
+                dataframe[column]
+                .fillna("")
+                .astype(str)
+                .str.strip()
+            )
+        else:
+            raw_dates = pd.Series(
+                "",
+                index=dataframe.index,
+                dtype="string",
+            )
+
+        has_value = raw_dates != ""
+        parsed_dates = pd.to_datetime(
+            raw_dates.where(has_value),
+            errors="coerce",
+            format="mixed",
+            utc=True,
+        )
+
+        valid_dates = has_value & parsed_dates.notna()
+        invalid_dates = has_value & parsed_dates.isna()
+
+        earliest = ""
+        latest = ""
+
+        if valid_dates.any():
+            earliest = (
+                parsed_dates.loc[valid_dates]
+                .min()
+                .strftime("%Y-%m-%d")
+            )
+            latest = (
+                parsed_dates.loc[valid_dates]
+                .max()
+                .strftime("%Y-%m-%d")
+            )
+
+        rows.append(
+            {
+                "dataset": dataset,
+                "date_type": date_type,
+                "earliest": earliest,
+                "latest": latest,
+                "records_with_date": int(valid_dates.sum()),
+                "missing_dates": int((~has_value).sum()),
+                "invalid_dates": int(invalid_dates.sum()),
+            }
+        )
+
+    if selected_kind in {"activities", "all"}:
+        activities = activities_df()
+
+        activity_date_columns = [
+            ("Planned start", "planned_start_date"),
+            ("Actual start", "actual_start_date"),
+            ("Planned end", "planned_end_date"),
+            ("Actual end", "actual_end_date"),
+        ]
+
+        for date_type, column in activity_date_columns:
+            add_date_row(
+                activities,
+                "Activities",
+                date_type,
+                column,
+            )
+
+    if selected_kind in {"transactions", "all"}:
+        add_date_row(
+            transactions_df(),
+            "Transactions",
+            "Transaction date",
+            "transaction_date",
+        )
+
+    table = h.build_table(
+        rows,
+        [
+            ("dataset", "Dataset"),
+            ("date_type", "Date type"),
+            ("earliest", "Earliest date"),
+            ("latest", "Latest date"),
+            ("records_with_date", "Records with date"),
+            ("missing_dates", "Missing dates"),
+            ("invalid_dates", "Invalid dates"),
+        ],
+    )
+
+    earliest_dates = [
+        row["earliest"]
+        for row in rows
+        if row["earliest"]
+    ]
+    latest_dates = [
+        row["latest"]
+        for row in rows
+        if row["latest"]
+    ]
+
+    if earliest_dates and latest_dates:
+        summary = (
+            f"Date coverage runs from {min(earliest_dates)} "
+            f"to {max(latest_dates)}. Missing and invalid dates "
+            "are reported separately for each date type."
+        )
+    else:
+        summary = (
+            "No valid dates were found for the selected date coverage. "
+            "Missing and invalid dates are reported in the table."
+        )
+
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+        tool_name=tool_name,
+        total=len(rows),
+        shown=len(rows),
+        filters={"date_kind": selected_kind},
+    )
+
+
+def list_category_values(
+    category: str,
+    limit: int = 100,
+):
+    """List values and counts for a supported categorical IATI field."""
+    tool_name = "list_category_values"
+    selected_category = str(category).strip().casefold()
+
+    if limit < 1:
+        return h.empty_result(
+            "The result limit must be greater than zero.",
+            source_url=xml_source(),
+        )
+
+    category_specs = {
+        "activity_status": {
+            "label": "Activity status",
+            "dataframe": activities_df,
+            "column": "activity_status",
+        },
+        "transaction_type": {
+            "label": "Transaction type",
+            "dataframe": transactions_df,
+            "column": "transaction_type",
+        },
+        "sector": {
+            "label": "Sector",
+            "dataframe": sectors_df,
+            "column": "sector_code",
+            "value_column": "sector_name",
+            "vocabulary_column": "vocabulary",
+        },
+        "organisation_type": {
+            "label": "Organisation type",
+            "dataframe": activities_df,
+            "column": "reporting_org_type",
+        },
+        "aid_type": {
+            "label": "Aid type",
+            "dataframe": activities_df,
+            "column": "default_aid_type",
+            "vocabulary_column": "default_aid_type_vocabulary",
+        },
+        "finance_type": {
+            "label": "Finance type",
+            "dataframe": activities_df,
+            "column": "default_finance_type",
+        },
+        "flow_type": {
+            "label": "Flow type",
+            "dataframe": activities_df,
+            "column": "default_flow_type",
+        },
+        "tied_status": {
+            "label": "Tied status",
+            "dataframe": activities_df,
+            "column": "default_tied_status",
+        },
+        "collaboration_type": {
+            "label": "Collaboration type",
+            "dataframe": activities_df,
+            "column": "collaboration_type",
+        },
+        "humanitarian": {
+            "label": "Humanitarian",
+            "dataframe": activities_df,
+            "column": "humanitarian",
+        },
+        "default_currency": {
+            "label": "Default currency",
+            "dataframe": activities_df,
+            "column": "default_currency",
+        },
+    }
+
+    spec = category_specs.get(selected_category)
+    if spec is None:
+        supported = ", ".join(sorted(category_specs))
+        return h.empty_result(
+            f"Unsupported category. Use one of: {supported}.",
+            source_url=xml_source(),
+        )
+
+    dataframe = spec["dataframe"]()
+    code_column = spec["column"]
+
+    if code_column not in dataframe.columns:
+        return h.empty_result(
+            f"Category '{selected_category}' is not available "
+            "in the loaded IATI data.",
+            source_url=xml_source(),
+        )
+
+    working = pd.DataFrame({
+        "code": (
+            dataframe[code_column]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+    })
+
+    value_column = spec.get("value_column")
+    if value_column and value_column in dataframe.columns:
+        explicit_values = (
+            dataframe[value_column]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+    else:
+        explicit_values = pd.Series(
+            "",
+            index=dataframe.index,
+            dtype="string",
+        )
+
+    vocabulary_column = spec.get("vocabulary_column")
+    if vocabulary_column and vocabulary_column in dataframe.columns:
+        working["vocabulary"] = (
+            dataframe[vocabulary_column]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+    else:
+        working["vocabulary"] = ""
+
+    working = working[working["code"] != ""].copy()
+
+    if working.empty:
+        return h.empty_result(
+            f"No values were found for category "
+            f"'{selected_category}'.",
+            source_url=xml_source(),
+        )
+
+    formatted_values = working["code"].map(
+        lambda value: h.category_value_label(
+            selected_category,
+            value,
+        )
+    )
+    explicit_values = explicit_values.loc[working.index]
+
+    working["value"] = explicit_values.where(
+        explicit_values != "",
+        formatted_values,
+    )
+
+    # AidType labels only apply to vocabulary 1 (OECD DAC).
+    if selected_category == "aid_type":
+        non_dac = ~working["vocabulary"].isin(["", "1"])
+        working.loc[non_dac, "value"] = working.loc[
+            non_dac,
+            "code",
+        ]
+
+    counts = (
+        working.groupby(
+            ["code", "value", "vocabulary"],
+            dropna=False,
+        )
+        .size()
+        .reset_index(name="records")
+    )
+    counts["category"] = spec["label"]
+
+    counts = counts.sort_values(
+        ["records", "value", "code"],
+        ascending=[False, True, True],
+        kind="mergesort",
+    )
+
+    total = len(counts)
+    shown = counts.head(limit)
+
+    rows = shown[
+        [
+            "category",
+            "code",
+            "value",
+            "vocabulary",
+            "records",
+        ]
+    ].to_dict("records")
+
+    table = h.build_table(
+        rows,
+        [
+            ("category", "Category"),
+            ("code", "Code"),
+            ("value", "Value"),
+            ("vocabulary", "Vocabulary"),
+            ("records", "Records"),
+        ],
+    )
+
+    summary = (
+        f"Found {total} value(s) for category "
+        f"'{selected_category}'."
+    )
+
+    return h.text_result(
+        summary,
+        source_url=xml_source(),
+        table=table,
+        tool_name=tool_name,
+        total=total,
+        shown=len(rows),
+        filters={"category": selected_category},
+        limit=limit,
+    )
+
+
 def search_activities(text: str, limit: int = 10):
     """Search IATI activities by a substring of their title."""
     tool_name = "search_activities"

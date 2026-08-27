@@ -226,6 +226,23 @@ IATI_STANDARD_URL = "https://iatistandard.org/en/iati-standard/203/"
 
 
 TOOL_GLOSSARY_TERMS = {
+    "file_overview": (
+        "IATI activity",
+        "reporting organisation",
+        "recipient country or region",
+        "transaction",
+        "transaction type",
+        "transaction value",
+        "default currency",
+        "commitment",
+        "disbursement",
+        "expenditure",
+    ),
+    "date_coverage": (
+        "IATI activity",
+        "activity date",
+        "transaction",
+    ),
     "search_activities": (
         "IATI activity",
         "IATI identifier",
@@ -234,6 +251,21 @@ TOOL_GLOSSARY_TERMS = {
     "list_activity_statuses": (
         "activity status",
         "IATI activity",
+    ),
+    "list_category_values": (
+        "codelist",
+        "vocabulary",
+        "activity status",
+        "transaction type",
+        "sector",
+        "organisation type",
+        "aid type",
+        "finance type",
+        "flow type",
+        "tied status",
+        "collaboration type",
+        "humanitarian flag",
+        "default currency",
     ),
     "list_reporting_organisations": (
         "reporting organisation",

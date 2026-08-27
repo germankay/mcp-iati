@@ -3,7 +3,16 @@
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
-from okfn_iati.enums import ActivityStatus, TransactionType
+from okfn_iati.enums import (
+    ActivityStatus,
+    AidType,
+    CollaborationType,
+    FinanceType,
+    FlowType,
+    OrganisationType,
+    TiedStatus,
+    TransactionType,
+)
 
 from mcp_server.results import text_result as _text_result
 
@@ -41,6 +50,20 @@ _STATUS_LABELS = {
 _TRANSACTION_TYPE_LABELS = {
     str(transaction_type.value): transaction_type.name.replace("_", " ").title()
     for transaction_type in TransactionType
+}
+_CATEGORY_ENUMS = {
+    "organisation_type": OrganisationType,
+    "aid_type": AidType,
+    "finance_type": FinanceType,
+    "flow_type": FlowType,
+    "tied_status": TiedStatus,
+    "collaboration_type": CollaborationType,
+}
+_HUMANITARIAN_LABELS = {
+    "0": "No",
+    "1": "Yes",
+    "false": "No",
+    "true": "Yes",
 }
 
 
@@ -195,6 +218,32 @@ def transaction_type_label(value: Any) -> str:
     """Return the human-readable label for an IATI transaction type code."""
     key = str(value)
     return _TRANSACTION_TYPE_LABELS.get(key, key)
+
+
+def category_value_label(category: str, value: Any) -> str:
+    """Return a readable label for a supported categorical IATI code."""
+    selected_category = str(category).strip().casefold()
+    key = str(value).strip()
+
+    if selected_category == "activity_status":
+        return activity_status_label(key)
+
+    if selected_category == "transaction_type":
+        return transaction_type_label(key)
+
+    if selected_category == "humanitarian":
+        return _HUMANITARIAN_LABELS.get(key.casefold(), key)
+
+    enum_class = _CATEGORY_ENUMS.get(selected_category)
+    if enum_class is None:
+        return key
+
+    try:
+        member = enum_class(key)
+    except (TypeError, ValueError):
+        return key
+
+    return member.name.replace("_", " ").title()
 
 
 def format_amount(value: Any) -> str:

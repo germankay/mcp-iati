@@ -1,3 +1,4 @@
+import pytest
 from mcp_iati import helpers as h
 from mcp_iati.glossary import IATI_STANDARD_URL
 
@@ -113,3 +114,19 @@ def test_text_result_omits_query_details_when_not_provided():
     )
 
     assert "=== Query details ===" not in result.content[0].text
+
+
+@pytest.mark.parametrize(
+    "category,code,expected",
+    [
+        ("activity_status", "2", "Implementation"),
+        ("transaction_type", "3", "Disbursement"),
+        ("organisation_type", "40", "Multilateral"),
+        ("aid_type", "C01", "Project Type"),
+        ("humanitarian", "1", "Yes"),
+        ("humanitarian", "0", "No"),
+        ("default_currency", "USD", "USD"),
+    ],
+)
+def test_category_value_label(category, code, expected):
+    assert h.category_value_label(category, code) == expected

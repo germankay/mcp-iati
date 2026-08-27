@@ -72,9 +72,24 @@ def test_table_to_text_pipe_format():
 # new table-returning tool, add it here.
 DATA_TOOLS = [
     (
+        "date_coverage",
+        queries.date_coverage,
+        {"date_kind": "transactions"},
+    ),
+    (
+        "list_category_values",
+        queries.list_category_values,
+        {"category": "activity_status"},
+    ),
+    (
         "search_activities",
         queries.search_activities,
         {"text": "programme"},
+    ),
+    (
+        "file_overview",
+        queries.file_overview,
+        {},
     ),
     (
         "list_activity_statuses",

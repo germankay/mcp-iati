@@ -41,6 +41,10 @@ def _register_iati_tools(mcp):  # noqa: C901
         ),
         sample_questions=[
             "Search IATI activities about transport",
+            "What does this IATI file contain?",
+            "What transaction types are present in this IATI file?",
+            "What aid types are present in this IATI file?",
+            "What date range does this IATI file cover?",
             "Give me a summary of activity XI-IATI-IADB-BR-L1231",
             "What does it mean for an activity to be in implementation?",
             "What is a policy marker?",
@@ -82,6 +86,88 @@ def _register_iati_tools(mcp):  # noqa: C901
         if reason:
             msg += f" Reason: {reason}."
         return h.text_result(msg, source_url="")
+
+    def file_overview() -> DataToolOutput:
+        return activities.file_overview()
+
+    file_overview.__doc__ = (
+        """Summarise the contents of the configured IATI file.
+
+        Use this tool for general questions such as what the file contains,
+        how many activities it has, which organisations report them, which
+        recipient countries and currencies appear, and how much financial
+        activity is reported.
+
+        Financial totals are kept separate by transaction type and currency.
+        The result includes:
+        - Total number of activities.
+        - Reporting organisations and their activity counts.
+        - Recipient countries and their activity counts.
+        - Default currencies used by activities.
+        - Transaction totals by type and currency.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("file_overview")
+    )
+    mcp.tool()(file_overview)
+
+    def date_coverage(
+        date_kind: str = "all",
+    ) -> DataToolOutput:
+        return activities.date_coverage(date_kind=date_kind)
+
+    date_coverage.__doc__ = (
+        """Report the date range covered by the configured IATI data.
+
+        Use date_kind to select activity dates, transaction dates or both:
+        - activities: planned and actual start and end dates.
+        - transactions: dates of financial transactions.
+        - all: both activity and transaction dates.
+
+        The result reports the earliest and latest valid date together with
+        counts of records containing valid, missing or invalid dates.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("date_coverage")
+    )
+    mcp.tool()(date_coverage)
+
+    def list_category_values(
+        category: str,
+        limit: int = 100,
+    ) -> DataToolOutput:
+        return activities.list_category_values(
+            category=category,
+            limit=limit,
+        )
+
+    list_category_values.__doc__ = (
+        """List the values present in a categorical IATI field.
+
+        Use this tool to explore available values before applying filters.
+        Supported categories are:
+        - activity_status
+        - transaction_type
+        - sector
+        - organisation_type
+        - aid_type
+        - finance_type
+        - flow_type
+        - tied_status
+        - collaboration_type
+        - humanitarian
+        - default_currency
+
+        The result includes each code, its readable value, its vocabulary
+        when applicable, and the number of records containing it.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("list_category_values")
+    )
+    mcp.tool()(list_category_values)
 
     def search_activities(text: str, limit: int = 10) -> DataToolOutput:
         return activities.search_activities(text, limit=limit)
