@@ -1,14 +1,14 @@
 """
 Test fixtures for the IATI tools.
 
-`seed_cache` preloads the `activities/data.py` cache with synthetic
-DataFrames (no network, no XML-to-CSV conversion) and points
-`MCP_IATI_XML_PATH` at a local path so `xml_source()` never triggers a
-download. `activities_df` / `transactions_df` return the cache when the key
-exists, so populating `data._cache` is enough.
+`seed_cache` preloads the shared pandas DataFrame cache with synthetic data.
+This avoids network access and XML-to-CSV conversion during query tests.
 
-`fake_mcp` is a test double of the mcp-server registry that captures
-`plugin_info` and the registered tools, by name and in registration order.
+The cached DataFrames use the same `dataframe:<table>` keys as the production
+data loader.
+
+`fake_mcp` is a test double of the mcp-server registry that captures plugin
+information and registered tools.
 """
 
 from types import SimpleNamespace
@@ -20,8 +20,8 @@ import pytest
 from mcp_iati.activities import data as data_mod
 
 
-# Fictitious local path: xml_source() returns it as-is (no download) and the
-# queries report it as the source.
+# Fictitious local path: xml_source() returns it as-is and queries report it
+# as their source.
 FAKE_XML = "/data/fake-iati-sample.xml"
 
 
@@ -51,26 +51,47 @@ def _activities_df():
 def _transactions_df():
     return pd.DataFrame(
         [
-            {"activity_identifier": "IATI-001", "transaction_type": "2", "value": 1000.0},
-            {"activity_identifier": "IATI-001", "transaction_type": "2", "value": 500.0},
-            {"activity_identifier": "IATI-001", "transaction_type": "3", "value": 750.0},
+            {
+                "activity_identifier": "IATI-001",
+                "transaction_type": "2",
+                "value": 1000.0,
+            },
+            {
+                "activity_identifier": "IATI-001",
+                "transaction_type": "2",
+                "value": 500.0,
+            },
+            {
+                "activity_identifier": "IATI-001",
+                "transaction_type": "3",
+                "value": 750.0,
+            },
         ]
     )
 
 
 @pytest.fixture
 def seed_cache(monkeypatch):
-    """Preload the data cache and clear it afterwards."""
+    """Preload shared DataFrames and clear them after the test."""
+    if hasattr(data_mod.get_settings, "cache_clear"):
+        data_mod.get_settings.cache_clear()
+
     monkeypatch.setenv("MCP_IATI_XML_PATH", FAKE_XML)
+
     data_mod._cache.clear()
-    data_mod._cache["activities"] = _activities_df()
-    data_mod._cache["transactions"] = _transactions_df()
+    data_mod._cache["dataframe:activities"] = _activities_df()
+    data_mod._cache["dataframe:transactions"] = _transactions_df()
+
     yield SimpleNamespace(
         source=FAKE_XML,
-        activities=data_mod._cache["activities"],
-        transactions=data_mod._cache["transactions"],
+        activities=data_mod._cache["dataframe:activities"],
+        transactions=data_mod._cache["dataframe:transactions"],
     )
+
     data_mod._cache.clear()
+
+    if hasattr(data_mod.get_settings, "cache_clear"):
+        data_mod.get_settings.cache_clear()
 
 
 class FakeMCP:
