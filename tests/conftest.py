@@ -13,6 +13,7 @@ exists, so populating `data._cache` is enough.
 
 from types import SimpleNamespace
 
+import mcp_iati
 import pandas as pd
 import pytest
 
@@ -89,5 +90,11 @@ class FakeMCP:
 
 
 @pytest.fixture
-def fake_mcp():
+def fake_mcp(monkeypatch, tmp_path):
+    """Return an MCP registry without preparing real IATI data."""
+    monkeypatch.setattr(
+        mcp_iati,
+        "prepare_data",
+        lambda: tmp_path,
+    )
     return FakeMCP()

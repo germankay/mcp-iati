@@ -19,37 +19,77 @@ Brazil, `iadb-Brazil.xml`, downloaded on demand from
 
 **Guiding principle:** these tools only use generic IATI standard fields
 (identifier, status, transaction type), never Brazil- or IADB-specific logic -
-they must work just as well with any other IATI XML (see the
-`MCP_IATI_SAMPLE` and `MCP_IATI_XML_PATH` variables below).
+they must work just as well with any other IATI XML (see the configuration
+variables below).
 
 ## Where the data comes from
 
 The sample XMLs are real-life data but are **not versioned in this repo**:
 they are downloaded on demand from `data-samples/xml/` in the
 [okfn/okfn_iati](https://github.com/okfn/okfn_iati) repo into the user data
-directory (`~/.local/share/mcp-iati/xml/` on Linux, via `platformdirs`), only
-once. The `.gitignore` excludes any `*.xml` just in case.
+directory (`~/.local/share/mcp-iati/xml/` on Linux, via `platformdirs`) and
+refreshed when its configured TTL expires. The `.gitignore` excludes any
+`*.xml` just in case.
 
 ## How the XML is processed
 
-1. `mcp_iati/activities/data.py` converts the configured XML to flat CSVs
-   once per process, using `okfn_iati.IatiMultiCsvConverter().xml_to_csv_folder(...)`
+1. `mcp_iati/activities/data.py` converts the configured XML to flat CSVs and
+   reuses the source-specific cache until its TTL expires, using
+   `okfn_iati.IatiMultiCsvConverter().xml_to_csv_folder(...)`
    (the same library `ckanext-iati-generator` uses in production, but in the
    XML -> CSV direction instead of CSV -> XML).
 2. The tools (`mcp_iati/activities/queries.py`) query those CSVs with
    `pandas`, not the XML - this avoids reparsing a multi-MB file on every
    call.
 3. It uses `iadb-Brazil.xml` by default. To use another sample from the
-   `okfn_iati` repo (downloaded automatically) or a local file, without
-   touching code:
+   `okfn_iati` repo, a remote URL or a local file, without touching code:
 
    ```bash
    # another sample from https://github.com/okfn/okfn_iati/tree/main/data-samples/xml
    export MCP_IATI_SAMPLE=iadb-Argentina.xml
 
+   # or any remote IATI XML
+   export MCP_IATI_XML_URL=https://example.org/activities.xml
+
    # or any local file (downloads nothing)
    export MCP_IATI_XML_PATH=/path/to/another-iati-file.xml
    ```
+
+## Configuration
+
+Configuration is read once when the process starts. Restart the server after
+changing the source, data directory or cache duration.
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `MCP_IATI_XML_PATH` | Path to a local XML. It has priority and performs no download. | Not set. |
+| `MCP_IATI_XML_URL` | HTTP(S) URL of a remote XML, used when no local path is configured. | Not set. |
+| `MCP_IATI_SAMPLE` | Name of an `okfn-iati` sample, used when neither a path nor URL is configured. | `iadb-Brazil.xml`. |
+| `MCP_IATI_DATA_DIR` | Directory for downloaded XML files and generated CSV files. | User data directory provided by `platformdirs`. |
+| `MCP_IATI_CACHE_TTL_SECONDS` | Configurable cache duration in seconds; must be greater than zero. | `604800` (7 days). |
+
+Downloaded XML files and converted CSV folders are reused while they remain
+inside this TTL. Once it expires, the XML is downloaded again and the CSVs
+are regenerated. CSV caches use a key derived from the configured origin, so
+Argentina, Brazil and custom URLs never share the same converted files.
+If a remote refresh fails and a previous XML exists, that stale copy is used
+with a runtime warning instead of making the tools unavailable.
+
+The source precedence is:
+
+1. `MCP_IATI_XML_PATH`.
+2. `MCP_IATI_XML_URL`.
+3. `MCP_IATI_SAMPLE`.
+4. The default `iadb-Brazil.xml` sample.
+
+Example:
+
+```bash
+export MCP_IATI_XML_URL=https://example.org/iadb-Argentina.xml
+export MCP_IATI_DATA_DIR=/var/cache/mcp-iati
+export MCP_IATI_CACHE_TTL_SECONDS=604800
+uv run mcp-server
+```
 
 ## Development
 
