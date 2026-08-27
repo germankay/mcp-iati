@@ -40,6 +40,8 @@ def test_dataframes_are_loaded_once_and_reused(tmp_path, monkeypatch):
                     "reporting_org_name": "Development Bank",
                     "reporting_org_ref": "ORG-001",
                     "default_currency": "USD",
+                    "recipient_country_code": "AR",
+                    "recipient_country_name": "Argentina",
                 }
             ]
         ),
@@ -53,6 +55,9 @@ def test_dataframes_are_loaded_once_and_reused(tmp_path, monkeypatch):
                     "activity_identifier": "IATI-001",
                     "transaction_type": "2",
                     "value": "1000",
+                    "transaction_date": "2024-01-10",
+                    "currency": "USD",
+                    "description": "Test transaction",
                 }
             ]
         ),
@@ -90,6 +95,11 @@ def test_missing_required_columns_raise_runtime_error(tmp_path, monkeypatch):
                 {
                     "activity_identifier": "IATI-001",
                     "title": "Health programme",
+                    "reporting_org_name": "Development Bank",
+                    "reporting_org_ref": "ORG-001",
+                    "default_currency": "USD",
+                    "recipient_country_code": "AR",
+                    "recipient_country_name": "Argentina",
                 }
             ]
         ),
@@ -103,6 +113,9 @@ def test_missing_required_columns_raise_runtime_error(tmp_path, monkeypatch):
                     "activity_identifier": "IATI-001",
                     "transaction_type": "2",
                     "value": "1000",
+                    "transaction_date": "2024-01-10",
+                    "currency": "USD",
+                    "description": "Test transaction",
                 }
             ]
         ),
@@ -177,6 +190,8 @@ def test_activities_and_transactions_can_be_joined_by_activity_identifier(tmp_pa
                     "reporting_org_name": "Org 1",
                     "reporting_org_ref": "ORG-001",
                     "default_currency": "USD",
+                    "recipient_country_code": "AR",
+                    "recipient_country_name": "Argentina",
                 },
                 {
                     "activity_identifier": "IATI-002",
@@ -185,6 +200,8 @@ def test_activities_and_transactions_can_be_joined_by_activity_identifier(tmp_pa
                     "reporting_org_name": "Org 2",
                     "reporting_org_ref": "ORG-002",
                     "default_currency": "EUR",
+                    "recipient_country_code": "BR",
+                    "recipient_country_name": "Brazil",
                 }
             ]
         ),
@@ -198,11 +215,17 @@ def test_activities_and_transactions_can_be_joined_by_activity_identifier(tmp_pa
                     "activity_identifier": "IATI-001",
                     "transaction_type": "2",
                     "value": "1000",
+                    "transaction_date": "2024-01-10",
+                    "currency": "USD",
+                    "description": "Test transaction",
                 },
                 {
                     "activity_identifier": "IATI-001",
                     "transaction_type": "3",
                     "value": "250",
+                    "transaction_date": "2024-01-10",
+                    "currency": "USD",
+                    "description": "Test transaction",
                 },
             ]
         ),
@@ -220,3 +243,33 @@ def test_activities_and_transactions_can_be_joined_by_activity_identifier(tmp_pa
 
     assert joined["title"].tolist() == ["Health programme", "Health programme"]
     assert joined["activity_identifier"].tolist() == ["IATI-001", "IATI-001"]
+
+
+def test_sectors_dataframe_is_loaded_and_percentage_is_numeric(
+    tmp_path,
+    monkeypatch,
+):
+    _write_csv(
+        tmp_path,
+        "sectors.csv",
+        pd.DataFrame(
+            [
+                {
+                    "activity_identifier": "IATI-001",
+                    "sector_code": "TR",
+                    "sector_name": "Transport",
+                    "vocabulary": "99",
+                    "percentage": "100",
+                }
+            ]
+        ),
+    )
+
+    monkeypatch.setattr(data_mod, "_csv_folder", lambda: tmp_path)
+
+    first = data_mod.sectors_df()
+    second = data_mod.sectors_df()
+
+    assert first is second
+    assert pd.api.types.is_numeric_dtype(first["percentage"])
+    assert first.loc[0, "percentage"] == 100.0

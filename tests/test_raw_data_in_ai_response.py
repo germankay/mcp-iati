@@ -67,9 +67,51 @@ def test_table_to_text_pipe_format():
 # (name, callable, kwargs) for every data tool in the repo. When adding a
 # new table-returning tool, add it here.
 DATA_TOOLS = [
-    ("search_activities", queries.search_activities, {"text": "programme"}),
-    ("activity_summary", queries.activity_summary, {"iati_identifier": "IATI-001"}),
-    ("define_term", terms.define_term, {"term": "organisation"}),
+    (
+        "search_activities",
+        queries.search_activities,
+        {"text": "programme"},
+    ),
+    (
+        "list_activity_statuses",
+        queries.list_activity_statuses,
+        {},
+    ),
+    (
+        "list_reporting_organisations",
+        queries.list_reporting_organisations,
+        {},
+    ),
+    (
+        "activity_summary",
+        queries.activity_summary,
+        {"iati_identifier": "IATI-001"},
+    ),
+    (
+        "define_term",
+        terms.define_term,
+        {"term": "organisation"},
+    ),
+        (
+        "list_recipient_countries",
+        queries.list_recipient_countries,
+        {},
+    ),
+        (
+        "filter_activities_by_country",
+        queries.filter_activities_by_country,
+        {"country": "AR"},
+    ),
+        (
+        "list_sectors",
+        queries.list_sectors,
+        {},
+    ),
+        (
+        "activity_transactions",
+        queries.activity_transactions,
+        {"iati_identifier": "IATI-001"},
+    ),
 ]
 
 

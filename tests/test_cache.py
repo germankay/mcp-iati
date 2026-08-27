@@ -18,6 +18,10 @@ def _settings(tmp_path, ttl=604800):
         ensure_data_dir=lambda: tmp_path,
     )
 
+def _write_required_csvs(folder):
+    for filename in data.REQUIRED_TOOL_CSVS:
+        (folder / filename).write_text("id\n1\n")
+
 
 def test_cache_is_fresh_inside_ttl(monkeypatch, tmp_path):
     cached_file = tmp_path / "source.xml"
@@ -86,8 +90,7 @@ def test_expired_xml_is_downloaded_again(monkeypatch, tmp_path):
 def test_csv_cache_requires_complete_fresh_files(monkeypatch, tmp_path):
     folder = tmp_path / "csv-cache"
     folder.mkdir()
-    (folder / "activities.csv").write_text("id\n1\n")
-    (folder / "transactions.csv").write_text("id\n1\n")
+    _write_required_csvs(folder)
     (folder / ".complete").touch()
     monkeypatch.setattr(data, "get_settings", lambda: _settings(tmp_path))
 
@@ -109,8 +112,7 @@ def test_different_origins_have_different_csv_cache_keys(monkeypatch, tmp_path):
 def test_expired_disk_cache_clears_in_process_data(monkeypatch, tmp_path):
     folder = tmp_path / "csv-cache"
     folder.mkdir()
-    (folder / "activities.csv").write_text("id\n1\n")
-    (folder / "transactions.csv").write_text("id\n1\n")
+    _write_required_csvs(folder)
     marker = folder / ".complete"
     marker.touch()
     expired_time = time.time() - 604801
@@ -130,8 +132,7 @@ def test_expired_disk_cache_clears_in_process_data(monkeypatch, tmp_path):
 def test_csv_cache_expires_when_local_xml_is_newer(monkeypatch, tmp_path):
     folder = tmp_path / "csv-cache"
     folder.mkdir()
-    (folder / "activities.csv").write_text("id\n1\n")
-    (folder / "transactions.csv").write_text("id\n1\n")
+    _write_required_csvs(folder)
     marker = folder / ".complete"
     marker.touch()
     source = tmp_path / "source.xml"
@@ -206,8 +207,7 @@ def test_csv_folder_reuses_persistent_conversion(monkeypatch, tmp_path):
 
         def xml_to_csv_folder(self, path, folder):
             conversion_calls.append(path)
-            (folder / "activities.csv").write_text("id\n1\n")
-            (folder / "transactions.csv").write_text("id\n1\n")
+            _write_required_csvs(folder)
             return True
 
     monkeypatch.setattr(data, "get_settings", lambda: settings)
@@ -242,8 +242,7 @@ def test_conversion_failed_with_complete_cache_reuses_previous(
     existing_folder = tmp_path / "csv" / cache_key
     existing_folder.mkdir(parents=True)
 
-    (existing_folder / "activities.csv").write_text("id\n1\n")
-    (existing_folder / "transactions.csv").write_text("id\n1\n")
+    _write_required_csvs(existing_folder)
 
     marker = existing_folder / ".complete"
     marker.touch()
@@ -274,6 +273,7 @@ def test_conversion_failed_with_complete_cache_reuses_previous(
     assert conversion_calls == [source]
     assert (existing_folder / "activities.csv").exists()
     assert (existing_folder / "transactions.csv").exists()
+    assert (existing_folder / "sectors.csv").exists()
     assert (existing_folder / ".complete").exists()
 
 
@@ -380,8 +380,7 @@ def test_failed_replacement_restores_previous_directory(monkeypatch, tmp_path):
             self.call_count += 1
             if self.call_count > 1:
                 raise RuntimeError("replacement failed")
-            (folder / "activities.csv").write_text("id\n1\n")
-            (folder / "transactions.csv").write_text("id\n1\n")
+            _write_required_csvs(folder)
             return True
 
     converter = Converter()
@@ -408,8 +407,7 @@ def test_successful_conversion_removes_backup_and_activates_new_cache(monkeypatc
 
         def xml_to_csv_folder(self, path, folder):
             conversion_calls.append(path)
-            (folder / "activities.csv").write_text("id\n1\n")
-            (folder / "transactions.csv").write_text("id\n1\n")
+            _write_required_csvs(folder)
             (folder / ".complete").touch()
             return True
 
