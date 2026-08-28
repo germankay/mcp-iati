@@ -7,18 +7,41 @@ documented Python tools, with `plugin_info`/`instructions`/`sample_questions`,
 a `no_tool_disponible` fallback tool and a tools module separate from the
 registration wiring.
 
-For now it defines two real tools over a sample IATI XML (IADB activities in
-Brazil, `iadb-Brazil.xml`, downloaded on demand from
-[okfn/okfn_iati](https://github.com/okfn/okfn_iati/tree/main/data-samples/xml)):
+It defines tools for exploring activities, organisations, recipient countries,
+sectors and transactions from a configured IATI XML.
+
+Available tools:
 
 - `search_activities(text, limit=10)`: search activities by title.
-- `activity_summary(iati_identifier)`: title, status and committed/disbursed
+- `list_activity_statuses()`: list available activity statuses and counts.
+- `list_reporting_organisations()`: list reporting organisations and their
+  number of activities.
+- `list_recipient_countries()`: list recipient countries and activity counts.
+- `filter_activities_by_country(country, limit=10)`: filter activities by
+  recipient-country code or name.
+- `list_sectors(limit=100)`: list sector codes, names and vocabularies.
+- `activity_summary(iati_identifier)`: show the main information and financial
   totals for one activity.
-- `define_term(term)`: explain what an IATI term means ("what does X
-  mean?"), from the central glossary.
+- `activity_transactions(iati_identifier, limit=50)`: list an activity's
+  transactions in chronological order.
+- `transaction_totals_by_year(year_from=None, year_to=None)`: group
+  commitment and disbursement totals by year, transaction type and currency,
+  while ignoring invalid dates/values and using the activity default currency
+  when a transaction currency is missing.
+- `transaction_totals_by_organisation(limit=50)`: group commitments and
+  disbursements by reporting organisation, keeping transaction types and
+  currencies separate and clarifying that the reporting organisation is the
+  publisher of the activity data, not necessarily the funder or implementer.
+- `transaction_totals_by_country(transaction_type="2", currency=None, limit=50)`: group commitments and disbursements by recipient country, keeping transaction types and currencies separate and using a clear fallback label when country details are missing.
+- `transaction_totals_by_sector(transaction_type="2", currency=None, vocabulary=None, limit=50)`: allocate commitment or disbursement totals across sectors using the published percentages, keeping vocabularies and currencies separate and adding an `Unallocated sector` bucket when percentages do not total 100%.
+- `top_activities_by_amount(transaction_type="2", currency=None, limit=10)`: 
+  list activities with the highest commitment or disbursement totals, ranked
+  independently for each currency.
+- `define_term(term)`: explain an IATI term using the central glossary.
 
 **Guiding principle:** these tools only use generic IATI standard fields
-(identifier, status, transaction type), never Brazil- or IADB-specific logic -
+(identifiers, statuses, organisations, recipient countries, sectors and
+transactions), never Brazil- or IADB-specific logic -
 they must work just as well with any other IATI XML (see the configuration
 variables below).
 
@@ -90,6 +113,22 @@ export MCP_IATI_DATA_DIR=/var/cache/mcp-iati
 export MCP_IATI_CACHE_TTL_SECONDS=604800
 uv run mcp-server
 ```
+
+### CSV tables used by the plugin
+
+| Table | Columns currently used | Relationship |
+|---|---|---|
+| `activities.csv` | `activity_identifier`, `title`, `activity_status`, `reporting_org_name`, `reporting_org_ref`, `default_currency`, `recipient_country_code`, `recipient_country_name` | `activity_identifier` identifies the activity |
+| `transactions.csv` | `activity_identifier`, `transaction_type`, `transaction_date`, `value`, `currency`, `description` | `activity_identifier` references `activities.csv` |
+| `sectors.csv` | `activity_identifier`, `sector_code`, `sector_name`, `vocabulary`, `percentage` | `activity_identifier` references `activities.csv` |
+
+The three CSV files are loaded as shared pandas DataFrames. Repeated tool
+calls reuse the same instances and do not download the XML, run the
+conversion or read the CSV files again.
+
+The data preparation and conversion logic is kept separate from the query
+logic. Additional CSV tables can be added through `DATAFRAME_SPECS`.
+
 
 ## Development
 

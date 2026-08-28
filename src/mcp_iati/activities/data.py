@@ -37,7 +37,59 @@ _cache: dict = {}
 REQUIRED_TOOL_CSVS = (
     "activities.csv",
     "transactions.csv",
+    "sectors.csv",
 )
+
+
+DATAFRAME_SPECS = {
+    "activities": {
+        "filename": "activities.csv",
+        "required_columns": (
+            "activity_identifier",
+            "title",
+            "activity_status",
+            "reporting_org_name",
+            "reporting_org_ref",
+            "default_currency",
+            "recipient_country_code",
+            "recipient_country_name",
+        ),
+        "numeric_columns": (),
+    },
+    "transactions": {
+        "filename": "transactions.csv",
+        "required_columns": (
+            "activity_identifier",
+            "transaction_type",
+            "transaction_date",
+            "value",
+            "currency",
+            "description",
+        ),
+        "numeric_columns": ("value",),
+    },
+    "sectors": {
+        "filename": "sectors.csv",
+        "required_columns": (
+            "activity_identifier",
+            "sector_code",
+            "sector_name",
+            "vocabulary",
+            "percentage",
+        ),
+        "numeric_columns": ("percentage",),
+    },
+}
+
+
+TABLE_RELATIONSHIPS = {
+     "transactions.activity_identifier": (
+        "activities.activity_identifier"
+    ),
+    "sectors.activity_identifier": (
+        "activities.activity_identifier"
+    ),
+}
 
 
 def _cache_is_fresh(path: Path) -> bool:
@@ -144,37 +196,69 @@ def _source_cache_key() -> str:
     return hashlib.sha256(source.encode()).hexdigest()[:16]
 
 
+def _csv_cache_is_complete(folder: Path) -> bool:
+    """Return whether the CSV cache contains all files required by the tools."""
+    required_files = (
+        *(folder / filename for filename in REQUIRED_TOOL_CSVS),
+        folder / ".complete",
+    )
+    return all(path.is_file() for path in required_files)
+
+
 def _csv_cache_is_fresh(
     folder: Path,
     source_path: Path | None = None,
 ) -> bool:
-    """Return whether a complete CSV cache exists and is still valid."""
+    """Return whether a complete CSV cache is still valid."""
     marker = folder / ".complete"
-    required_files = (
-        folder / "activities.csv",
-        folder / "transactions.csv",
-        marker,
-    )
-    if not all(path.exists() for path in required_files):
+
+    if not _csv_cache_is_complete(folder):
         return False
     if not _cache_is_fresh(marker):
         return False
     if source_path and not source_path.exists():
         return False
 
-    return not source_path or marker.stat().st_mtime >= source_path.stat().st_mtime
+    return (
+        source_path is None
+        or marker.stat().st_mtime >= source_path.stat().st_mtime
+    )
 
 
 def _clear_expired_memory_cache() -> None:
-    """Drop in-process DataFrames when their disk cache has expired."""
+    """Drop in-process data when their disk cache has expired."""
+    if _cache.get("using_stale_csv"):
+        return
+
     cached_folder = _cache.get("csv_folder")
     local_source = get_settings().xml_path
+
     if cached_folder and not _csv_cache_is_fresh(
         Path(cached_folder),
         local_source,
     ):
-        for key in ("csv_folder", "activities", "transactions"):
-            _cache.pop(key, None)
+        _cache.clear()
+
+
+def _replace_csv_cache(tmp_dir: Path, cache_dir: Path) -> None:
+    """Atomically replace a CSV cache while preserving rollback data."""
+    backup_dir = cache_dir.with_name(f".{cache_dir.name}.previous")
+
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
+
+    if cache_dir.exists():
+        cache_dir.rename(backup_dir)
+
+    try:
+        tmp_dir.rename(cache_dir)
+    except Exception:
+        if backup_dir.exists() and not cache_dir.exists():
+            backup_dir.rename(cache_dir)
+        raise
+    else:
+        if backup_dir.exists():
+            shutil.rmtree(backup_dir)
 
 
 def _csv_folder() -> Path:
@@ -198,30 +282,54 @@ def _csv_folder() -> Path:
         tmp_dir = Path(
             tempfile.mkdtemp(prefix=f"{cache_key}-", dir=csv_parent)
         )
+
         try:
             converter = IatiMultiCsvConverter()
+
             if not converter.xml_to_csv_folder(path, tmp_dir):
                 raise RuntimeError(
                     f"Failed to convert {path} to CSV: "
                     f"{converter.latest_errors}"
                 )
-            required_files = (
-                tmp_dir / "activities.csv",
-                tmp_dir / "transactions.csv",
-            )
-            if not all(file.exists() for file in required_files):
+
+            missing_files = [
+                filename
+                for filename in REQUIRED_TOOL_CSVS
+                if not (tmp_dir / filename).is_file()
+            ]
+            if missing_files:
+                missing = ", ".join(missing_files)
                 raise RuntimeError(
                     "IATI conversion did not produce the required CSVs "
-                    f"for {path}."
+                    f"for {path}: {missing}"
                 )
 
             (tmp_dir / ".complete").touch()
-            if cache_dir.exists():
-                shutil.rmtree(cache_dir)
-            tmp_dir.rename(cache_dir)
+            _replace_csv_cache(tmp_dir, cache_dir)
+
+        except Exception as error:
+            if _csv_cache_is_complete(cache_dir):
+                warnings.warn(
+                    "Could not refresh IATI CSV cache from "
+                    f"{xml_source()}; using the last complete cache "
+                    f"at {cache_dir}: {error}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                _cache["csv_folder"] = cache_dir
+                _cache["using_stale_csv"] = True
+                return cache_dir
+
+            raise RuntimeError(
+                "Could not create IATI CSV cache from "
+                f"{xml_source()}: {error}"
+            ) from error
+
         finally:
             if tmp_dir.exists():
                 shutil.rmtree(tmp_dir)
+
+        _cache.pop("using_stale_csv", None)
         _cache["csv_folder"] = cache_dir
     return _cache["csv_folder"]
 
@@ -259,17 +367,56 @@ def prepare_data() -> Path:
     return folder
 
 
-def activities_df() -> pd.DataFrame:
+def _dataframe(table_name: str) -> pd.DataFrame:
+    """Load, validate and share a configured CSV as a pandas DataFrame."""
+    try:
+        spec = DATAFRAME_SPECS[table_name]
+    except KeyError as error:
+        raise ValueError(
+            f"Unknown IATI CSV table: {table_name}"
+        ) from error
+
+    cache_key = f"dataframe:{table_name}"
     _clear_expired_memory_cache()
-    if "activities" not in _cache:
-        _cache["activities"] = pd.read_csv(_csv_folder() / "activities.csv", dtype=str)
-    return _cache["activities"]
+
+    if cache_key in _cache:
+        return _cache[cache_key]
+
+    csv_path = _csv_folder() / spec["filename"]
+    dataframe = pd.read_csv(csv_path, dtype=str)
+
+    missing_columns = [
+        column
+        for column in spec["required_columns"]
+        if column not in dataframe.columns
+    ]
+    if missing_columns:
+        missing = ", ".join(missing_columns)
+        raise RuntimeError(
+            f"{spec['filename']} is missing required columns: "
+            f"{missing}"
+        )
+
+    for column in spec["numeric_columns"]:
+        dataframe[column] = pd.to_numeric(
+            dataframe[column],
+            errors="coerce",
+        )
+
+    _cache[cache_key] = dataframe
+    return _cache[cache_key]
+
+
+def activities_df() -> pd.DataFrame:
+    """Return the shared activities DataFrame."""
+    return _dataframe("activities")
 
 
 def transactions_df() -> pd.DataFrame:
-    _clear_expired_memory_cache()
-    if "transactions" not in _cache:
-        df = pd.read_csv(_csv_folder() / "transactions.csv", dtype=str)
-        df["value"] = pd.to_numeric(df["value"], errors="coerce")
-        _cache["transactions"] = df
-    return _cache["transactions"]
+    """Return the shared transactions DataFrame."""
+    return _dataframe("transactions")
+
+
+def sectors_df() -> pd.DataFrame:
+    """Return the shared sectors DataFrame."""
+    return _dataframe("sectors")

@@ -10,6 +10,7 @@ def test_prepare_data_returns_valid_csv_folder(monkeypatch, tmp_path):
     (folder / "activities.csv").write_text("id\n1\n")
     (folder / "transactions.csv").write_text("id\n1\n")
     (folder / "locations.csv").write_text("id\n1\n")
+    (folder / "sectors.csv").write_text("id\n1\n")
 
     monkeypatch.setattr(data, "_csv_folder", lambda: folder)
     monkeypatch.setattr(
@@ -26,6 +27,7 @@ def test_prepare_data_returns_valid_csv_folder(monkeypatch, tmp_path):
     [
         "activities.csv",
         "transactions.csv",
+        "sectors.csv",
     ],
 )
 def test_prepare_data_rejects_missing_required_csv(
@@ -39,6 +41,9 @@ def test_prepare_data_rejects_missing_required_csv(
     for filename in data.REQUIRED_TOOL_CSVS:
         if filename != missing_filename:
             (folder / filename).write_text("id\n1\n")
+    if missing_filename == "sectors.csv":
+        (folder / "activities.csv").write_text("id\n1\n")
+        (folder / "transactions.csv").write_text("id\n1\n")
 
     monkeypatch.setattr(data, "_csv_folder", lambda: folder)
     monkeypatch.setattr(

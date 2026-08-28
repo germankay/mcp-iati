@@ -222,6 +222,140 @@ IATI_GLOSSARY = {
 }
 
 
+IATI_STANDARD_URL = "https://iatistandard.org/en/iati-standard/203/"
+
+
+TOOL_GLOSSARY_TERMS = {
+    "file_overview": (
+        "IATI activity",
+        "reporting organisation",
+        "recipient country or region",
+        "transaction",
+        "transaction type",
+        "transaction value",
+        "default currency",
+        "commitment",
+        "disbursement",
+        "expenditure",
+    ),
+    "date_coverage": (
+        "IATI activity",
+        "activity date",
+        "transaction",
+    ),
+    "search_activities": (
+        "IATI activity",
+        "IATI identifier",
+        "activity status",
+    ),
+    "list_activity_statuses": (
+        "activity status",
+        "IATI activity",
+    ),
+    "list_category_values": (
+        "codelist",
+        "vocabulary",
+        "activity status",
+        "transaction type",
+        "sector",
+        "organisation type",
+        "aid type",
+        "finance type",
+        "flow type",
+        "tied status",
+        "collaboration type",
+        "humanitarian flag",
+        "default currency",
+    ),
+    "list_reporting_organisations": (
+        "reporting organisation",
+        "IATI activity",
+    ),
+    "list_recipient_countries": (
+        "recipient country or region",
+        "IATI activity",
+    ),
+    "filter_activities_by_country": (
+        "recipient country or region",
+        "IATI activity",
+        "IATI identifier",
+        "activity status",
+    ),
+    "list_sectors": (
+        "sector",
+        "vocabulary",
+        "IATI activity",
+    ),
+    "activity_summary": (
+        "IATI identifier",
+        "reporting organisation",
+        "activity status",
+        "transaction",
+        "commitment",
+        "disbursement",
+        "expenditure",
+        "default currency",
+    ),
+    "activity_transactions": (
+        "IATI identifier",
+        "transaction",
+        "transaction type",
+        "transaction value",
+        "commitment",
+        "disbursement",
+        "expenditure",
+    ),
+    "transaction_totals_by_year": (
+        "transaction",
+        "transaction type",
+        "transaction value",
+        "commitment",
+        "disbursement",
+        "default currency",
+    ),
+    "transaction_totals_by_organisation": (
+        "reporting organisation",
+        "transaction",
+        "transaction type",
+        "transaction value",
+        "commitment",
+        "disbursement",
+        "default currency",
+    ),
+    "transaction_totals_by_sector": (
+        "sector",
+        "vocabulary",
+        "transaction",
+        "transaction type",
+        "transaction value",
+        "commitment",
+        "disbursement",
+        "default currency",
+    ),
+    "transaction_totals_by_country": (
+        "recipient country or region",
+        "transaction",
+        "transaction type",
+        "transaction value",
+        "commitment",
+        "disbursement",
+        "default currency",
+    ),
+    "top_activities_by_amount": (
+        "IATI activity",
+        "IATI identifier",
+        "reporting organisation",
+        "recipient country or region",
+        "transaction",
+        "transaction type",
+        "transaction value",
+        "commitment",
+        "disbursement",
+        "default currency",
+    ),
+}
+
+
 def _capitalize(term: str) -> str:
     """Capitalize only the first letter, preserving acronyms like IATI."""
     return term[0].upper() + term[1:]
@@ -274,3 +408,18 @@ def glossary_text(*terms: str) -> str:
 def full_glossary_text() -> str:
     """Return all glossary entries for the MCP plugin instructions."""
     return glossary_text(*IATI_GLOSSARY)
+
+
+def tool_glossary_terms(tool_name: str) -> tuple[str, ...]:
+    """Return the glossary terms relevant to an IATI tool."""
+    return TOOL_GLOSSARY_TERMS.get(tool_name, ())
+
+
+def tool_glossary_text(tool_name: str) -> str:
+    """Return only the definitions relevant to an IATI tool."""
+    terms = tool_glossary_terms(tool_name)
+
+    if not terms:
+        return ""
+
+    return glossary_text(*terms)

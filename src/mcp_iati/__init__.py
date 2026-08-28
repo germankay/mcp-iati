@@ -4,7 +4,7 @@ from mcp_iati import helpers as h
 from mcp_iati import terms
 from mcp_iati.activities.data import prepare_data
 from mcp_iati.activities import queries as activities
-from mcp_iati.glossary import full_glossary_text, glossary_text
+from mcp_iati.glossary import tool_glossary_text
 
 
 def register_tools(mcp):
@@ -29,23 +29,41 @@ def _register_iati_tools(mcp):  # noqa: C901
             "the IATI open data standard for development cooperation."
         ),
         instructions=(
-            "You are an assistant for querying IATI data. Interpret questions "
-            "using the glossary below and explain the terms whenever there may "
-            "be ambiguity. Do not confuse the reporting organisation with the "
-            "one funding or implementing an activity, nor a commitment with a "
-            "disbursement or an expenditure. Use only the data returned by the "
-            "tools; when the user asks what a term means, call define_term, and "
-            "if a question falls outside the tools' scope, call "
-            "no_tool_disponible explaining why.\n\n"
-            "IATI glossary:\n" + full_glossary_text()
+            "You are an assistant for querying IATI data. Use the definitions "
+            "attached to the selected tool and its successful response. Explain "
+            "only the IATI terms relevant to the user's question and do not add "
+            "unrelated glossary entries. Do not confuse the reporting organisation "
+            "with the organisation funding or implementing an activity, nor a "
+            "commitment with a disbursement or an expenditure. Use only the data "
+            "returned by the tools. When the user asks what a term means, call "
+            "define_term. If a question falls outside the tools' scope, call "
+            "no_tool_disponible and explain why."
         ),
         sample_questions=[
             "Search IATI activities about transport",
+            "What does this IATI file contain?",
+            "What transaction types are present in this IATI file?",
+            "What aid types are present in this IATI file?",
+            "What date range does this IATI file cover?",
             "Give me a summary of activity XI-IATI-IADB-BR-L1231",
             "What does it mean for an activity to be in implementation?",
             "What is a policy marker?",
             "How much was committed and how much was disbursed in this activity?",
             "Is the reporting organisation also the one funding the project?",
+            "What activity statuses are present in this IATI file?",
+            "Which organisations report activities in this IATI file?",
+            "Which recipient countries are present in this IATI file?",
+            "Which IATI activities have Brazil as their recipient country?",
+            "Which sectors are present in this IATI file?",
+            "Show the transactions for activity XI-IATI-IADB-BR-L1231",
+            "How much was committed and disbursed each year?",
+            "How much was committed and disbursed by each reporting organisation?",
+            "How much was committed by sector?",
+            "How much was disbursed by sector in USD?",
+            "How much was committed and disbursed by recipient country?",
+            "Which activities have the highest commitment totals?",
+            "Which activities have the highest disbursement totals in USD?",
+            "Show annual commitments and disbursements from 2022 to 2024.",
         ],
     )
 
@@ -69,6 +87,88 @@ def _register_iati_tools(mcp):  # noqa: C901
             msg += f" Reason: {reason}."
         return h.text_result(msg, source_url="")
 
+    def file_overview() -> DataToolOutput:
+        return activities.file_overview()
+
+    file_overview.__doc__ = (
+        """Summarise the contents of the configured IATI file.
+
+        Use this tool for general questions such as what the file contains,
+        how many activities it has, which organisations report them, which
+        recipient countries and currencies appear, and how much financial
+        activity is reported.
+
+        Financial totals are kept separate by transaction type and currency.
+        The result includes:
+        - Total number of activities.
+        - Reporting organisations and their activity counts.
+        - Recipient countries and their activity counts.
+        - Default currencies used by activities.
+        - Transaction totals by type and currency.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("file_overview")
+    )
+    mcp.tool()(file_overview)
+
+    def date_coverage(
+        date_kind: str = "all",
+    ) -> DataToolOutput:
+        return activities.date_coverage(date_kind=date_kind)
+
+    date_coverage.__doc__ = (
+        """Report the date range covered by the configured IATI data.
+
+        Use date_kind to select activity dates, transaction dates or both:
+        - activities: planned and actual start and end dates.
+        - transactions: dates of financial transactions.
+        - all: both activity and transaction dates.
+
+        The result reports the earliest and latest valid date together with
+        counts of records containing valid, missing or invalid dates.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("date_coverage")
+    )
+    mcp.tool()(date_coverage)
+
+    def list_category_values(
+        category: str,
+        limit: int = 100,
+    ) -> DataToolOutput:
+        return activities.list_category_values(
+            category=category,
+            limit=limit,
+        )
+
+    list_category_values.__doc__ = (
+        """List the values present in a categorical IATI field.
+
+        Use this tool to explore available values before applying filters.
+        Supported categories are:
+        - activity_status
+        - transaction_type
+        - sector
+        - organisation_type
+        - aid_type
+        - finance_type
+        - flow_type
+        - tied_status
+        - collaboration_type
+        - humanitarian
+        - default_currency
+
+        The result includes each code, its readable value, its vocabulary
+        when applicable, and the number of records containing it.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("list_category_values")
+    )
+    mcp.tool()(list_category_values)
+
     def search_activities(text: str, limit: int = 10) -> DataToolOutput:
         return activities.search_activities(text, limit=limit)
 
@@ -87,9 +187,126 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text("IATI activity", "IATI identifier", "activity status")
+        + tool_glossary_text("search_activities")
     )
     mcp.tool()(search_activities)
+
+    def list_activity_statuses() -> DataToolOutput:
+        return activities.list_activity_statuses()
+
+    list_activity_statuses.__doc__ = (
+        """List the activity statuses present in the loaded IATI data.
+
+        Use this tool to discover which lifecycle statuses are available
+        before filtering or analysing activities.
+
+        Returns:
+            A table containing each status code, its human-readable label
+            and the number of activities using it.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("list_activity_statuses")
+    )
+    mcp.tool()(list_activity_statuses)
+
+
+    def list_reporting_organisations() -> DataToolOutput:
+        return activities.list_reporting_organisations()
+
+    list_reporting_organisations.__doc__ = (
+        """List the organisations that report activities in the loaded
+        IATI data.
+
+        The reporting organisation is responsible for publishing and
+        maintaining the activity data. It is not necessarily the funding
+        or implementing organisation.
+
+        Returns:
+            A table containing the organisation reference, name and number
+            of activities reported.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("list_reporting_organisations")
+    )
+    mcp.tool()(list_reporting_organisations)
+
+
+    def list_recipient_countries() -> DataToolOutput:
+        return activities.list_recipient_countries()
+
+    list_recipient_countries.__doc__ = (
+        """List the recipient countries present in the loaded IATI data.
+
+        Use this tool to discover which country codes are available before
+        filtering activities by recipient country.
+
+        Returns:
+            A table containing the recipient country code, country name and
+            number of related activities.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("list_recipient_countries")
+    )
+    mcp.tool()(list_recipient_countries)
+
+    def filter_activities_by_country(
+        country: str,
+        limit: int = 10,
+    ) -> DataToolOutput:
+        return activities.filter_activities_by_country(
+            country,
+            limit=limit,
+        )
+
+    filter_activities_by_country.__doc__ = (
+        """Filter IATI activities by recipient country.
+
+        The country may be provided as an ISO country code, such as "BR",
+        or as the country name published in the IATI data, such as "Brazil".
+
+        Use list_recipient_countries first when the available country codes
+        or names are unknown.
+
+        Args:
+            country: Recipient country code or name.
+            limit: Maximum number of activities to return. Default: 10.
+
+        Returns:
+            A table containing matching activity identifiers, titles,
+            statuses and recipient-country information.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("filter_activities_by_country")
+    )
+    mcp.tool()(filter_activities_by_country)
+
+
+    def list_sectors(limit: int = 100) -> DataToolOutput:
+        return activities.list_sectors(limit=limit)
+
+    list_sectors.__doc__ = (
+        """List the sectors present in the loaded IATI data.
+
+        Use this tool to discover the available sector codes and
+        vocabularies before performing sector-based analysis.
+
+        Args:
+            limit: Maximum number of sector values to return. Default: 100.
+
+        Returns:
+            A table containing vocabulary, sector code, sector name and
+            number of related activities.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("list_sectors")
+    )
+    mcp.tool()(list_sectors)
+
 
     def activity_summary(iati_identifier: str) -> DataToolOutput:
         return activities.activity_summary(iati_identifier)
@@ -104,18 +321,198 @@ def _register_iati_tools(mcp):  # noqa: C901
 
         Relevant IATI terms:
         """
-        + glossary_text(
-            "IATI identifier",
-            "reporting organisation",
-            "activity status",
-            "transaction",
-            "commitment",
-            "disbursement",
-            "expenditure",
-            "default currency",
-        )
+        + tool_glossary_text("activity_summary")
     )
     mcp.tool()(activity_summary)
+
+    def activity_transactions(
+        iati_identifier: str,
+        limit: int = 50,
+    ) -> DataToolOutput:
+        return activities.activity_transactions(
+            iati_identifier,
+            limit=limit,
+        )
+
+    activity_transactions.__doc__ = (
+        """List the transactions associated with an IATI activity.
+
+        Transactions are returned in chronological order and include their
+        type, value, currency and published description.
+
+        Args:
+            iati_identifier: IATI identifier of the activity.
+            limit: Maximum number of transactions to return. Default: 50.
+
+        Returns:
+            A table containing the transactions associated with the
+            requested activity.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("activity_transactions")
+    )
+    mcp.tool()(activity_transactions)
+
+    def transaction_totals_by_year(
+        year_from: int | None = None,
+        year_to: int | None = None,
+    ) -> DataToolOutput:
+        return activities.transaction_totals_by_year(
+            year_from=year_from,
+            year_to=year_to,
+        )
+
+    transaction_totals_by_year.__doc__ = (
+        """Group commitments and disbursements by year and currency.
+
+        Only commitment and disbursement transactions are included. Amounts
+        with different currencies are always reported separately.
+
+        Args:
+            year_from: Optional first year to include.
+            year_to: Optional last year to include.
+
+        Returns:
+            A chronological table containing year, transaction type, currency
+            and total amount.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("transaction_totals_by_year")
+    )
+    mcp.tool()(transaction_totals_by_year)
+
+    def transaction_totals_by_organisation(
+        limit: int = 50,
+    ) -> DataToolOutput:
+        return activities.transaction_totals_by_organisation(limit=limit)
+
+    transaction_totals_by_organisation.__doc__ = (
+        """Group commitments and disbursements by reporting organisation.
+
+        Amounts with different currencies and transaction types are reported
+        separately. The reporting organisation publishes the activity data and
+        is not necessarily the organisation funding or implementing the
+        activity.
+
+        Args:
+            limit: Maximum number of grouped rows to return. Default: 50.
+
+        Returns:
+            A table containing the organisation reference and name,
+            transaction type, currency and total amount.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("transaction_totals_by_organisation")
+    )
+    mcp.tool()(transaction_totals_by_organisation)
+
+    def transaction_totals_by_sector(
+        transaction_type: str = "2",
+        currency: str | None = None,
+        vocabulary: str | None = None,
+        limit: int = 50,
+    ) -> DataToolOutput:
+        return activities.transaction_totals_by_sector(
+            transaction_type=transaction_type,
+            currency=currency,
+            vocabulary=vocabulary,
+            limit=limit,
+        )
+
+    transaction_totals_by_sector.__doc__ = (
+        """Allocate commitments and disbursements across sectors.
+
+        Amounts are distributed using the published sector percentages.
+        Different vocabularies and currencies are reported separately.
+
+        Args:
+            transaction_type: Commitment or disbursement. Accepts commitment,
+                out commitment, disbursement, 2 or 3.
+            currency: Optional currency code, for example USD or EUR.
+            vocabulary: Optional sector vocabulary code, for example 1 or 2.
+            limit: Maximum number of grouped rows to return per vocabulary and
+                currency. Default: 50.
+
+        Returns:
+            A table containing the vocabulary, sector, transaction type,
+            currency and allocated total amount.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("transaction_totals_by_sector")
+    )
+    mcp.tool()(transaction_totals_by_sector)
+
+    def transaction_totals_by_country(
+        transaction_type: str = "2",
+        currency: str | None = None,
+        limit: int = 50,
+    ) -> DataToolOutput:
+        return activities.transaction_totals_by_country(
+            transaction_type=transaction_type,
+            currency=currency,
+            limit=limit,
+        )
+
+    transaction_totals_by_country.__doc__ = (
+        """Group commitments and disbursements by recipient country.
+
+        Amounts with different currencies and transaction types are reported
+        separately. Missing country names fall back to the country code, and
+        missing country data falls back to "Unknown recipient country".
+
+        Args:
+            transaction_type: Commitment or disbursement. Accepts commitment,
+                out commitment, disbursement, 2 or 3.
+            currency: Optional currency code, for example USD or EUR.
+            limit: Maximum number of grouped rows to return. Default: 50.
+
+        Returns:
+            A table containing the country code and name, transaction type,
+            currency and total amount.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("transaction_totals_by_country")
+    )
+    mcp.tool()(transaction_totals_by_country)
+
+    def top_activities_by_amount(
+        transaction_type: str = "2",
+        currency: str | None = None,
+        limit: int = 10,
+    ) -> DataToolOutput:
+        return activities.top_activities_by_amount(
+            transaction_type=transaction_type,
+            currency=currency,
+            limit=limit,
+        )
+
+    top_activities_by_amount.__doc__ = (
+        """List activities with the highest commitment or disbursement totals.
+
+        Rankings are calculated independently for each currency, avoiding
+        comparisons between amounts expressed in different currencies.
+
+        Args:
+            transaction_type: Commitment or disbursement. Accepts commitment,
+                out commitment, disbursement, 2 or 3.
+            currency: Optional currency code, for example USD or EUR.
+            limit: Maximum results to return per currency. Default: 10.
+
+        Returns:
+            A table containing activity identifiers, titles, reporting
+            organisations, recipient countries, transaction type, currency
+            and total amount.
+
+        Relevant IATI terms:
+        """
+        + tool_glossary_text("top_activities_by_amount")
+    )
+    mcp.tool()(top_activities_by_amount)
 
     @mcp.tool()
     def define_term(term: str) -> DataToolOutput:
